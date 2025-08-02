@@ -846,7 +846,10 @@
             VEHICLE_TYPE: 'stazka_vehicleType',
             TRAILER_PLATE: 'stazka_trailerPlate',
             START_LOCATION: 'stazka_startLocation',
-            EMAIL_ADDRESS: 'stazka_emailAddress'
+            END_LOCATION: 'stazka_endLocation',
+            ROUTE_DESCRIPTION: 'stazka_routeDescription',
+            EMAIL_ADDRESS: 'stazka_emailAddress',
+            LAST_ODOMETER: 'stazka_lastOdometer'
         };
 
         // Inicializace při načtení stránky
@@ -881,7 +884,7 @@
             const fieldsToSave = [
                 'driverName', 'licenseNumber', 'employerName', 
                 'vehiclePlate', 'vehicleType', 'trailerPlate', 
-                'startLocation'
+                'startLocation', 'endLocation', 'routeDescription', 'odometerStart'
             ];
 
             fieldsToSave.forEach(fieldId => {
@@ -902,11 +905,15 @@
                 [STORAGE_KEYS.VEHICLE_TYPE]: document.getElementById('vehicleType').value,
                 [STORAGE_KEYS.TRAILER_PLATE]: document.getElementById('trailerPlate').value,
                 [STORAGE_KEYS.START_LOCATION]: document.getElementById('startLocation').value,
-                [STORAGE_KEYS.EMAIL_ADDRESS]: currentEmailAddress
+                [STORAGE_KEYS.END_LOCATION]: document.getElementById('endLocation').value,
+                [STORAGE_KEYS.ROUTE_DESCRIPTION]: document.getElementById('routeDescription').value,
+                [STORAGE_KEYS.EMAIL_ADDRESS]: currentEmailAddress,
+                [STORAGE_KEYS.LAST_ODOMETER]: document.getElementById('odometerStart').value
             };
 
             // Uložení do paměti (simulace localStorage)
             window.stazkaStoredValues = values;
+            console.log('Hodnoty uloženy:', values);
         }
 
         function loadSavedValues() {
@@ -920,7 +927,10 @@
                 { id: 'vehiclePlate', key: STORAGE_KEYS.VEHICLE_PLATE },
                 { id: 'vehicleType', key: STORAGE_KEYS.VEHICLE_TYPE },
                 { id: 'trailerPlate', key: STORAGE_KEYS.TRAILER_PLATE },
-                { id: 'startLocation', key: STORAGE_KEYS.START_LOCATION }
+                { id: 'startLocation', key: STORAGE_KEYS.START_LOCATION },
+                { id: 'endLocation', key: STORAGE_KEYS.END_LOCATION },
+                { id: 'routeDescription', key: STORAGE_KEYS.ROUTE_DESCRIPTION },
+                { id: 'odometerStart', key: STORAGE_KEYS.LAST_ODOMETER }
             ];
 
             fieldMappings.forEach(mapping => {
@@ -928,6 +938,7 @@
                 const value = savedValues[mapping.key];
                 if (element && value) {
                     element.value = value;
+                    console.log(`Načteno ${mapping.id}: ${value}`);
                 }
             });
 
@@ -936,6 +947,8 @@
             if (currentEmailAddress) {
                 document.getElementById('emailAddress').value = currentEmailAddress;
             }
+
+            console.log('Všechny hodnoty načteny:', savedValues);
         }
 
         function initializeMap() {
@@ -1102,9 +1115,18 @@
         }
 
         function clearForm() {
-            if (confirm('Opravdu chcete vymazat všechny zadané údaje?')) {
+            if (confirm('Opravdu chcete vymazat všechny zadané údaje?\n\n⚠️ Pozor: Tachometr zůstane zachován.')) {
+                const lastOdometer = window.stazkaStoredValues ? window.stazkaStoredValues[STORAGE_KEYS.LAST_ODOMETER] : '';
+                
                 document.getElementById('mobileLogbookForm').reset();
                 window.stazkaStoredValues = {};
+                
+                // Zachování tachometru
+                if (lastOdometer) {
+                    document.getElementById('odometerStart').value = lastOdometer;
+                    window.stazkaStoredValues = { [STORAGE_KEYS.LAST_ODOMETER]: lastOdometer };
+                }
+                
                 initializeApp();
             }
         }
@@ -1151,6 +1173,25 @@
                 timestamp: endTime
             };
 
+            // Výpočet celkové vzdálenosti
+            let totalDistance = 0;
+            for (let i = 1; i < currentRoute.length; i++) {
+                const prev = currentRoute[i - 1];
+                const curr = currentRoute[i];
+                totalDistance += calculateDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+            }
+
+            // Aktualizace tachometru
+            const startOdometer = parseInt(document.getElementById('odometerStart').value) || 0;
+            const endOdometer = startOdometer + Math.round(totalDistance);
+            
+            // Uložení nového stavu tachometru
+            const savedValues = window.stazkaStoredValues || {};
+            savedValues[STORAGE_KEYS.LAST_ODOMETER] = endOdometer.toString();
+            window.stazkaStoredValues = savedValues;
+
+            console.log(`Tachometr aktualizován: ${startOdometer} + ${Math.round(totalDistance)} = ${endOdometer} km`);
+
             // Vytvoření XML souboru
             const xmlContent = generateXMLReport(endTime, endLocation);
             
@@ -1187,21 +1228,126 @@
         }
 
         function addStop() {
+            // Vytvoření modal pro přidání zastávky
+            showStopModal();
+        }
+
+        function showStopModal() {
+            // Vytvoření modal okna pro zastávku
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.id = 'stopModal';
+            
+            // Získání aktuální pozice pro automatické doplnění
+            const currentLat = document.getElementById('latitude').textContent;
+            const currentLng = document.getElementById('longitude').textContent;
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-title">🛑 Přidat zastávku</div>
+                    <div style="text-align: left; margin: 20px 0;">
+                        <div class="input-group">
+                            <label class="input-label">Účel cesty</label>
+                            <select id="stopPurpose" class="select-field" required>
+                                <option value="">Vyberte účel</option>
+                                <option value="nakládka">📦 Nakládka</option>
+                                <option value="vykládka">📤 Vykládka</option>
+                                <option value="prostoj">⏸️ Prostoj</option>
+                                <option value="oprava">🔧 Oprava</option>
+                                <option value="přestávka">☕ Přestávka</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Místo (automaticky z GPS)</label>
+                            <input type="text" id="stopLocation" class="input-field" 
+                                   value="GPS: ${currentLat}, ${currentLng}" required>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Název objednatele</label>
+                            <input type="text" id="stopClient" class="input-field" 
+                                   placeholder="Název firmy/klienta">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Poznámka</label>
+                            <textarea id="stopNote" class="input-field" rows="3" 
+                                      placeholder="Dodatečné informace..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-buttons">
+                        <button class="modal-btn modal-btn-secondary" onclick="closeStopModal()">Zrušit</button>
+                        <button class="modal-btn modal-btn-primary" onclick="confirmAddStop()">Přidat zastávku</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Focus na první pole
+            setTimeout(() => {
+                document.getElementById('stopPurpose').focus();
+            }, 300);
+        }
+
+        function closeStopModal() {
+            const modal = document.getElementById('stopModal');
+            if (modal) {
+                modal.classList.remove('active');
+                setTimeout(() => {
+                    document.body.removeChild(modal);
+                }, 300);
+            }
+        }
+
+        function confirmAddStop() {
+            const purpose = document.getElementById('stopPurpose').value;
+            const location = document.getElementById('stopLocation').value;
+            const client = document.getElementById('stopClient').value;
+            const note = document.getElementById('stopNote').value;
+            
+            if (!purpose) {
+                alert('⚠️ Vyberte prosím účel cesty.');
+                return;
+            }
+            
+            if (!location) {
+                alert('⚠️ Zadejte prosím místo zastávky.');
+                return;
+            }
+            
             const stopTime = new Date();
             const stop = {
                 time: stopTime,
-                location: {
+                purpose: purpose,
+                location: location,
+                client: client,
+                note: note,
+                gpsCoords: {
                     lat: document.getElementById('latitude').textContent,
                     lng: document.getElementById('longitude').textContent
-                },
-                duration: 0
+                }
             };
             
             stops.push(stop);
             updateStopsList();
             updateTripStats();
             
-            alert('🛑 Zastávka přidána!\n\nČas: ' + stopTime.toLocaleTimeString('cs-CZ'));
+            // Zavření modal
+            closeStopModal();
+            
+            // Zobrazení potvrzení
+            const purposeIcons = {
+                'nakládka': '📦',
+                'vykládka': '📤', 
+                'prostoj': '⏸️',
+                'oprava': '🔧',
+                'přestávka': '☕'
+            };
+            
+            alert(`✅ Zastávka přidána!\n\n${purposeIcons[purpose]} ${purpose.charAt(0).toUpperCase() + purpose.slice(1)}\n` +
+                  `🕐 Čas: ${stopTime.toLocaleTimeString('cs-CZ')}\n` +
+                  `📍 Místo: ${location}\n` +
+                  (client ? `🏢 Objednatel: ${client}\n` : '') +
+                  (note ? `📝 Poznámka: ${note}` : ''));
         }
 
         function updateStopsList() {
@@ -1216,15 +1362,44 @@
             stopsList.classList.add('has-stops');
             stopsContainer.innerHTML = '';
             
+            const purposeIcons = {
+                'nakládka': '📦',
+                'vykládka': '📤', 
+                'prostoj': '⏸️',
+                'oprava': '🔧',
+                'přestávka': '☕'
+            };
+            
             stops.forEach((stop, index) => {
                 const stopItem = document.createElement('div');
                 stopItem.className = 'stop-item';
+                stopItem.style.flexDirection = 'column';
+                stopItem.style.alignItems = 'flex-start';
+                stopItem.style.padding = '15px 20px';
+                
+                const icon = purposeIcons[stop.purpose] || '🛑';
+                const purposeText = stop.purpose ? stop.purpose.charAt(0).toUpperCase() + stop.purpose.slice(1) : 'Zastávka';
+                
                 stopItem.innerHTML = `
-                    <div class="stop-info">
-                        <div class="stop-time">${stop.time.toLocaleTimeString('cs-CZ')}</div>
-                        <div class="stop-location">GPS: ${stop.location.lat}, ${stop.location.lng}</div>
+                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 8px;">
+                        <div class="stop-time" style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2em;">${icon}</span>
+                            <span>${purposeText}</span>
+                        </div>
+                        <div class="stop-duration">Zastávka ${index + 1}</div>
                     </div>
-                    <div class="stop-duration">Zastávka ${index + 1}</div>
+                    <div style="font-size: 0.9em; color: #666; margin-bottom: 4px;">
+                        🕐 ${stop.time.toLocaleTimeString('cs-CZ')}
+                    </div>
+                    <div style="font-size: 0.9em; color: #666; margin-bottom: 4px;">
+                        📍 ${stop.location}
+                    </div>
+                    ${stop.client ? `<div style="font-size: 0.9em; color: #666; margin-bottom: 4px;">
+                        🏢 ${stop.client}
+                    </div>` : ''}
+                    ${stop.note ? `<div style="font-size: 0.9em; color: #666; font-style: italic;">
+                        💬 ${stop.note}
+                    </div>` : ''}
                 `;
                 stopsContainer.appendChild(stopItem);
             });
@@ -1269,8 +1444,12 @@
                 const stopElement = xmlDoc.createElement('Stop');
                 stopElement.appendChild(createXMLElement(xmlDoc, 'Index', (index + 1).toString()));
                 stopElement.appendChild(createXMLElement(xmlDoc, 'Time', stop.time.toISOString()));
-                stopElement.appendChild(createXMLElement(xmlDoc, 'Latitude', stop.location.lat));
-                stopElement.appendChild(createXMLElement(xmlDoc, 'Longitude', stop.location.lng));
+                stopElement.appendChild(createXMLElement(xmlDoc, 'Purpose', stop.purpose || ''));
+                stopElement.appendChild(createXMLElement(xmlDoc, 'Location', stop.location || ''));
+                stopElement.appendChild(createXMLElement(xmlDoc, 'Client', stop.client || ''));
+                stopElement.appendChild(createXMLElement(xmlDoc, 'Note', stop.note || ''));
+                stopElement.appendChild(createXMLElement(xmlDoc, 'GPSLatitude', stop.gpsCoords ? stop.gpsCoords.lat : ''));
+                stopElement.appendChild(createXMLElement(xmlDoc, 'GPSLongitude', stop.gpsCoords ? stop.gpsCoords.lng : ''));
                 stopsElement.appendChild(stopElement);
             });
             root.appendChild(stopsElement);
