@@ -1,5 +1,4 @@
-// Automatické rozpoznání místa zastávky
-            detectLocationFromCoords(currentLat, currentLng, 'stop');<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
@@ -202,6 +201,11 @@
 
         #map {
             height: 250px;
+            width: 100%;
+        }
+
+        #summaryMap {
+            height: 350px;
             width: 100%;
         }
 
@@ -523,6 +527,8 @@
             text-align: center;
             transform: scale(0.9);
             transition: transform 0.3s ease;
+            max-height: 80vh;
+            overflow-y: auto;
         }
 
         .modal.active .modal-content {
@@ -582,6 +588,281 @@
             border-color: #667eea;
         }
 
+        /* Sumář jízdy */
+        .trip-summary {
+            background: white;
+            margin: 15px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .summary-header {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .summary-subtitle {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0;
+        }
+
+        .summary-stat {
+            padding: 20px;
+            text-align: center;
+            border-right: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+        }
+
+        .summary-stat:nth-child(even) {
+            border-right: none;
+        }
+
+        .summary-stat:nth-last-child(-n+2) {
+            border-bottom: none;
+        }
+
+        .stat-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .route-visualization {
+            position: relative;
+        }
+
+        .gps-point {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 4px rgba(0,0,0,0.3);
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .gps-point:hover {
+            transform: translate(-50%, -50%) scale(1.5);
+            z-index: 10;
+        }
+
+        .gps-point.start {
+            background: #4CAF50;
+            width: 12px;
+            height: 12px;
+        }
+
+        .gps-point.end {
+            background: #f44336;
+            width: 12px;
+            height: 12px;
+        }
+
+        .gps-point.stop {
+            background: #ff9800;
+            width: 10px;
+            height: 10px;
+        }
+
+        .gps-point.normal {
+            background: #2196F3;
+        }
+
+        .route-line {
+            position: absolute;
+            stroke: #2196F3;
+            stroke-width: 2;
+            fill: none;
+            opacity: 0.7;
+        }
+
+        .legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 1px solid white;
+            box-shadow: 0 0 2px rgba(0,0,0,0.3);
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+
+        /* Uložené jízdy */
+        .saved-trips {
+            background: white;
+            margin: 15px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .saved-trips-header {
+            background: linear-gradient(45deg, #e67e22, #d35400);
+            color: white;
+            padding: 20px;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .saved-trip-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .saved-trip-item:hover {
+            background: #f8f9fa;
+        }
+
+        .saved-trip-item:last-child {
+            border-bottom: none;
+        }
+
+        .saved-trip-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .saved-trip-title {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .saved-trip-date {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .saved-trip-details {
+            color: #666;
+            font-size: 0.85em;
+        }
+
+        .saved-trip-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        /* Navigační tlačítka */
+        .navigation-tabs {
+            position: fixed;
+            bottom: 100px;
+            left: 15px;
+            right: 15px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            display: none;
+            z-index: 998;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+
+        .navigation-tabs.show {
+            display: grid;
+        }
+
+        .nav-tab {
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .nav-tab:first-child {
+            border-radius: 15px 0 0 15px;
+        }
+
+        .nav-tab:last-child {
+            border-radius: 0 15px 15px 0;
+        }
+
+        .nav-tab:hover {
+            background: #f8f9fa;
+        }
+
+        .nav-tab.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
         @media (max-width: 360px) {
             .section-card {
                 margin: 10px;
@@ -595,6 +876,14 @@
             .input-row {
                 grid-template-columns: 1fr;
                 gap: 10px;
+            }
+
+            .summary-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .summary-stat {
+                border-right: none;
             }
         }
     </style>
@@ -619,197 +908,264 @@
     </div>
 
     <div class="main-container">
-        <form id="mobileLogbookForm">
-            <!-- Údaje o řidiči -->
-            <div class="section-card">
-                <div class="section-header">
-                    <span>👤</span>
-                    Údaje o řidiči
+        <!-- Obrazovka nové jízdy -->
+        <div id="newTripScreen">
+            <form id="mobileLogbookForm">
+                <!-- Údaje o řidiči -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <span>👤</span>
+                        Údaje o řidiči
+                    </div>
+                    <div class="section-content">
+                        <div class="input-group">
+                            <label class="input-label" for="driverName">Jméno a příjmení</label>
+                            <input type="text" id="driverName" name="driverName" class="input-field" required>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="licenseNumber">Číslo řidičského průkazu</label>
+                            <input type="text" id="licenseNumber" name="licenseNumber" class="input-field" required>
+                        </div>
+                    </div>
                 </div>
-                <div class="section-content">
-                    <div class="input-group">
-                        <label class="input-label" for="driverName">Jméno a příjmení</label>
-                        <input type="text" id="driverName" name="driverName" class="input-field" required>
+
+                <!-- Údaje o vozidle -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <span>🚚</span>
+                        Vozidlo
                     </div>
-                    <div class="input-group">
-                        <label class="input-label" for="licenseNumber">Číslo řidičského průkazu</label>
-                        <input type="text" id="licenseNumber" name="licenseNumber" class="input-field" required>
+                    <div class="section-content">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label class="input-label" for="vehiclePlate">SPZ vozidla</label>
+                                <input type="text" id="vehiclePlate" name="vehiclePlate" class="input-field" required>
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label" for="odometerStart">Tachometr (km)</label>
+                                <input type="number" id="odometerStart" name="odometerStart" class="input-field" required>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="vehicleType">Typ vozidla</label>
+                            <select id="vehicleType" name="vehicleType" class="select-field" required>
+                                <option value="">Vyberte typ</option>
+                                <option value="osobní">Osobní automobil</option>
+                                <option value="nákladní">Nákladní automobil</option>
+                                <option value="autobus">Autobus</option>
+                                <option value="souprava">Nákladní souprava</option>
+                                <option value="tahač">Tahač s návěsem</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="trailerPlate">SPZ přívěsu (volitelné)</label>
+                            <input type="text" id="trailerPlate" name="trailerPlate" class="input-field">
+                        </div>
                     </div>
-                    <div class="input-group">
-                        <label class="input-label" for="employerName">Zaměstnavatel</label>
-                        <input type="text" id="employerName" name="employerName" class="input-field" required>
+                </div>
+
+                <!-- Datum a čas -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <span>📅</span>
+                        Datum a čas
+                    </div>
+                    <div class="section-content">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label class="input-label" for="workDate">Datum</label>
+                                <input type="date" id="workDate" name="workDate" class="input-field" required>
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label" for="startTime">Čas zahájení</label>
+                                <input type="time" id="startTime" name="startTime" class="input-field" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trasa -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <span>📍</span>
+                        Trasa a náklad
+                    </div>
+                    <div class="section-content">
+                        <div class="input-group">
+                            <label class="input-label" for="startLocation">Místo zahájení</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="startLocation" name="startLocation" class="input-field" required style="flex: 1;">
+                                <button type="button" class="btn-mobile btn-secondary" onclick="detectStartLocation()" 
+                                        style="padding: 10px; min-width: auto; width: 50px; height: 50px; border-radius: 10px;">
+                                    📍
+                                </button>
+                            </div>
+                            <div id="startLocationStatus" style="font-size: 0.8em; color: #666; margin-top: 5px;"></div>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="endLocation">Cílové místo</label>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="endLocation" name="endLocation" class="input-field" style="flex: 1;">
+                                <button type="button" class="btn-mobile btn-secondary" onclick="detectEndLocation()" 
+                                        style="padding: 10px; min-width: auto; width: 50px; height: 50px; border-radius: 10px;">
+                                    📍
+                                </button>
+                            </div>
+                            <div id="endLocationStatus" style="font-size: 0.8em; color: #666; margin-top: 5px;"></div>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="routeDescription">Popis nákladu/cesty</label>
+                            <input type="text" id="routeDescription" name="routeDescription" class="input-field">
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- GPS tracking info -->
+            <div class="tracking-info" id="trackingInfo">
+                <div class="tracking-icon">🛰️</div>
+                <div class="tracking-text">
+                    <div class="tracking-title">GPS Sledování aktivní</div>
+                    <div class="tracking-desc">Trasa bude automaticky zaznamenávána</div>
+                </div>
+            </div>
+
+            <!-- Trip status -->
+            <div class="trip-status" id="tripStatus">
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                    <div style="font-size: 2em;">🚛</div>
+                    <div>
+                        <div style="font-weight: bold; color: #27ae60; font-size: 1.2em;">Jízda probíhá</div>
+                        <div style="color: #666; font-size: 0.9em;">Zahájeno: <span id="tripStartDisplay">---</span></div>
+                    </div>
+                </div>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="status-value" id="tripDuration">00:00</span>
+                        <div class="status-label">Doba jízdy</div>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-value" id="tripDistance">0.0</span>
+                        <div class="status-label">Km ujetých</div>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-value" id="routePoints">0</span>
+                        <div class="status-label">GPS bodů</div>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-value" id="stopsCount">0</span>
+                        <div class="status-label">Zastávek</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Údaje o vozidle -->
-            <div class="section-card">
-                <div class="section-header">
-                    <span>🚚</span>
-                    Vozidlo
+            <!-- Stops list -->
+            <div class="stops-list" id="stopsList">
+                <div class="stops-header">
+                    <span>🛑</span>
+                    Zastávky během jízdy
                 </div>
-                <div class="section-content">
-                    <div class="input-row">
-                        <div class="input-group">
-                            <label class="input-label" for="vehiclePlate">SPZ vozidla</label>
-                            <input type="text" id="vehiclePlate" name="vehiclePlate" class="input-field" required>
-                        </div>
-                        <div class="input-group">
-                            <label class="input-label" for="odometerStart">Tachometr (km)</label>
-                            <input type="number" id="odometerStart" name="odometerStart" class="input-field" required>
-                        </div>
-                    </div>
-                    <div class="input-group">
-                        <label class="input-label" for="vehicleType">Typ vozidla</label>
-                        <select id="vehicleType" name="vehicleType" class="select-field" required>
-                            <option value="">Vyberte typ</option>
-                            <option value="osobní">Osobní automobil</option>
-                            <option value="nákladní">Nákladní automobil</option>
-                            <option value="autobus">Autobus</option>
-                            <option value="souprava">Nákladní souprava</option>
-                            <option value="tahač">Tahač s návěsem</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <label class="input-label" for="trailerPlate">SPZ přívěsu (volitelné)</label>
-                        <input type="text" id="trailerPlate" name="trailerPlate" class="input-field">
-                    </div>
-                </div>
+                <div id="stopsContainer"></div>
             </div>
 
-            <!-- Datum a čas -->
-            <div class="section-card">
-                <div class="section-header">
-                    <span>📅</span>
-                    Datum a čas
-                </div>
-                <div class="section-content">
-                    <div class="input-row">
-                        <div class="input-group">
-                            <label class="input-label" for="workDate">Datum</label>
-                            <input type="date" id="workDate" name="workDate" class="input-field" required>
-                        </div>
-                        <div class="input-group">
-                            <label class="input-label" for="startTime">Čas zahájení</label>
-                            <input type="time" id="startTime" name="startTime" class="input-field" required>
-                        </div>
+            <!-- Mapa -->
+            <div class="map-container">
+                <div class="map-header">
+                    <div class="map-title">
+                        <span>🗺️</span>
+                        Aktuální poloha
+                    </div>
+                    <div class="gps-status" id="gpsStatus">
+                        <span>📡</span>
+                        Vyhledávání...
                     </div>
                 </div>
-            </div>
-
-            <!-- Trasa -->
-            <div class="section-card">
-                <div class="section-header">
-                    <span>📍</span>
-                    Trasa a náklad
-                </div>
-                <div class="section-content">
-                    <div class="input-group">
-                        <label class="input-label" for="startLocation">Místo zahájení</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="startLocation" name="startLocation" class="input-field" required style="flex: 1;">
-                            <button type="button" class="btn-mobile btn-secondary" onclick="detectStartLocation()" 
-                                    style="padding: 10px; min-width: auto; width: 50px; height: 50px; border-radius: 10px;">
-                                📍
-                            </button>
-                        </div>
-                        <div id="startLocationStatus" style="font-size: 0.8em; color: #666; margin-top: 5px;"></div>
+                <div id="map"></div>
+                <div class="location-info">
+                    <div class="location-row">
+                        <span class="location-label">Zeměpisná šířka:</span>
+                        <span class="location-value" id="latitude">---</span>
                     </div>
-                    <div class="input-group">
-                        <label class="input-label" for="endLocation">Cílové místo</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="endLocation" name="endLocation" class="input-field" style="flex: 1;">
-                            <button type="button" class="btn-mobile btn-secondary" onclick="detectEndLocation()" 
-                                    style="padding: 10px; min-width: auto; width: 50px; height: 50px; border-radius: 10px;">
-                                📍
-                            </button>
-                        </div>
-                        <div id="endLocationStatus" style="font-size: 0.8em; color: #666; margin-top: 5px;"></div>
+                    <div class="location-row">
+                        <span class="location-label">Zeměpisná délka:</span>
+                        <span class="location-value" id="longitude">---</span>
                     </div>
-                    <div class="input-group">
-                        <label class="input-label" for="routeDescription">Popis nákladu/cesty</label>
-                        <input type="text" id="routeDescription" name="routeDescription" class="input-field">
+                    <div class="location-row">
+                        <span class="location-label">Přesnost GPS:</span>
+                        <span class="location-value" id="accuracy">---</span>
+                    </div>
+                    <div class="location-row">
+                        <span class="location-label">Poslední aktualizace:</span>
+                        <span class="location-value" id="lastUpdate">---</span>
                     </div>
                 </div>
-            </div>
-        </form>
-
-        <!-- GPS tracking info -->
-        <div class="tracking-info" id="trackingInfo">
-            <div class="tracking-icon">🛰️</div>
-            <div class="tracking-text">
-                <div class="tracking-title">GPS Sledování aktivní</div>
-                <div class="tracking-desc">Trasa bude automaticky zaznamenávána</div>
             </div>
         </div>
 
-        <!-- Trip status -->
-        <div class="trip-status" id="tripStatus">
-            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-                <div style="font-size: 2em;">🚛</div>
-                <div>
-                    <div style="font-weight: bold; color: #27ae60; font-size: 1.2em;">Jízda probíhá</div>
-                    <div style="color: #666; font-size: 0.9em;">Zahájeno: <span id="tripStartDisplay">---</span></div>
+        <!-- Obrazovka sumáře jízdy -->
+        <div id="tripSummaryScreen" class="hidden">
+            <div class="trip-summary">
+                <div class="summary-header">
+                    <div class="summary-title">📊 Sumář jízdy</div>
+                    <div class="summary-subtitle" id="summarySubtitle">Dokončeno</div>
+                </div>
+                <div class="summary-stats" id="summaryStatsContainer">
+                    <!-- Dynamicky generované statistiky -->
                 </div>
             </div>
-            <div class="status-grid">
-                <div class="status-item">
-                    <span class="status-value" id="tripDuration">00:00</span>
-                    <div class="status-label">Doba jízdy</div>
+
+            <!-- Mapa trasy -->
+            <div class="map-container">
+                <div class="map-header">
+                    <div class="map-title">
+                        <span>🗺️</span>
+                        Trasa jízdy
+                    </div>
+                    <div class="gps-status" style="background: #4caf50;">
+                        <span>✅</span>
+                        Dokončeno
+                    </div>
                 </div>
-                <div class="status-item">
-                    <span class="status-value" id="tripDistance">0.0</span>
-                    <div class="status-label">Km ujetých</div>
+                <div id="summaryMap" class="route-visualization">
+                    <svg id="summaryRouteSvg" width="100%" height="100%">
+                        <polyline id="summaryRouteLine" class="route-line" points=""></polyline>
+                    </svg>
                 </div>
-                <div class="status-item">
-                    <span class="status-value" id="routePoints">0</span>
-                    <div class="status-label">GPS bodů</div>
-                </div>
-                <div class="status-item">
-                    <span class="status-value" id="stopsCount">0</span>
-                    <div class="status-label">Zastávek</div>
+                
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4CAF50; width: 14px; height: 14px;"></div>
+                        <span>Start</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f44336; width: 14px; height: 14px;"></div>
+                        <span>Konec</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ff9800; width: 12px; height: 12px;"></div>
+                        <span>Zastávka</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #2196F3;"></div>
+                        <span>GPS bod</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Stops list -->
-        <div class="stops-list" id="stopsList">
-            <div class="stops-header">
-                <span>🛑</span>
-                Zastávky během jízdy
-            </div>
-            <div id="stopsContainer"></div>
-        </div>
-
-        <!-- Mapa -->
-        <div class="map-container">
-            <div class="map-header">
-                <div class="map-title">
-                    <span>🗺️</span>
-                    Aktuální poloha
+        <!-- Obrazovka uložených jízd -->
+        <div id="savedTripsScreen" class="hidden">
+            <div class="saved-trips">
+                <div class="saved-trips-header">
+                    <span>🗂️ Uložené jízdy</span>
+                    <span id="savedTripsCount">0</span>
                 </div>
-                <div class="gps-status" id="gpsStatus">
-                    <span>📡</span>
-                    Vyhledávání...
-                </div>
-            </div>
-            <div id="map"></div>
-            <div class="location-info">
-                <div class="location-row">
-                    <span class="location-label">Zeměpisná šířka:</span>
-                    <span class="location-value" id="latitude">---</span>
-                </div>
-                <div class="location-row">
-                    <span class="location-label">Zeměpisná délka:</span>
-                    <span class="location-value" id="longitude">---</span>
-                </div>
-                <div class="location-row">
-                    <span class="location-label">Přesnost GPS:</span>
-                    <span class="location-value" id="accuracy">---</span>
-                </div>
-                <div class="location-row">
-                    <span class="location-label">Poslední aktualizace:</span>
-                    <span class="location-value" id="lastUpdate">---</span>
+                <div id="savedTripsContainer">
+                    <div style="padding: 40px; text-align: center; color: #666;">
+                        <div style="font-size: 3em; margin-bottom: 15px;">📁</div>
+                        <div style="font-weight: bold; margin-bottom: 5px;">Žádné uložené jízdy</div>
+                        <div style="font-size: 0.9em;">Dokončené jízdy se zobrazí zde</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -817,6 +1173,19 @@
         <div class="bottom-spacer"></div>
     </div>
 
+    <!-- Navigační tlačítka -->
+    <div class="navigation-tabs" id="navigationTabs">
+        <div class="nav-tab active" onclick="showScreen('summary')">
+            <span>📊</span>
+            Sumář
+        </div>
+        <div class="nav-tab" onclick="showScreen('saved')">
+            <span>🗂️</span>
+            Uložené
+        </div>
+    </div>
+
+    <!-- Akční tlačítka -->
     <div class="action-buttons" id="actionButtons">
         <button type="button" class="btn-mobile btn-secondary" onclick="clearForm()">
             <span>🗑️</span>
@@ -843,6 +1212,9 @@
         </div>
     </div>
 
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip"></div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     <script>
         // Globální proměnné
@@ -853,6 +1225,8 @@
         let tripStartTime = null;
         let currentEmailAddress = '';
         let lastKnownAddress = '';
+        let completedTrip = null;
+        let savedTrips = [];
 
         // Automatické rozpoznání místa při startu aplikace
         let autoDetectStartOnLoad = true;
@@ -861,7 +1235,6 @@
         const STORAGE_KEYS = {
             DRIVER_NAME: 'stazka_driverName',
             LICENSE_NUMBER: 'stazka_licenseNumber',
-            EMPLOYER_NAME: 'stazka_employerName',
             VEHICLE_PLATE: 'stazka_vehiclePlate',
             VEHICLE_TYPE: 'stazka_vehicleType',
             TRAILER_PLATE: 'stazka_trailerPlate',
@@ -869,13 +1242,15 @@
             END_LOCATION: 'stazka_endLocation',
             ROUTE_DESCRIPTION: 'stazka_routeDescription',
             EMAIL_ADDRESS: 'stazka_emailAddress',
-            LAST_ODOMETER: 'stazka_lastOdometer'
+            LAST_ODOMETER: 'stazka_lastOdometer',
+            SAVED_TRIPS: 'stazka_savedTrips'
         };
 
         // Inicializace při načtení stránky
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
             loadSavedValues();
+            loadSavedTrips();
             initializeMap();
             requestLocationPermission();
         });
@@ -902,7 +1277,7 @@
 
         function setupAutoSave() {
             const fieldsToSave = [
-                'driverName', 'licenseNumber', 'employerName', 
+                'driverName', 'licenseNumber', 
                 'vehiclePlate', 'vehicleType', 'trailerPlate', 
                 'startLocation', 'endLocation', 'routeDescription', 'odometerStart'
             ];
@@ -920,7 +1295,6 @@
             const values = {
                 [STORAGE_KEYS.DRIVER_NAME]: document.getElementById('driverName').value,
                 [STORAGE_KEYS.LICENSE_NUMBER]: document.getElementById('licenseNumber').value,
-                [STORAGE_KEYS.EMPLOYER_NAME]: document.getElementById('employerName').value,
                 [STORAGE_KEYS.VEHICLE_PLATE]: document.getElementById('vehiclePlate').value,
                 [STORAGE_KEYS.VEHICLE_TYPE]: document.getElementById('vehicleType').value,
                 [STORAGE_KEYS.TRAILER_PLATE]: document.getElementById('trailerPlate').value,
@@ -943,7 +1317,6 @@
             const fieldMappings = [
                 { id: 'driverName', key: STORAGE_KEYS.DRIVER_NAME },
                 { id: 'licenseNumber', key: STORAGE_KEYS.LICENSE_NUMBER },
-                { id: 'employerName', key: STORAGE_KEYS.EMPLOYER_NAME },
                 { id: 'vehiclePlate', key: STORAGE_KEYS.VEHICLE_PLATE },
                 { id: 'vehicleType', key: STORAGE_KEYS.VEHICLE_TYPE },
                 { id: 'trailerPlate', key: STORAGE_KEYS.TRAILER_PLATE },
@@ -969,6 +1342,108 @@
             }
 
             console.log('Všechny hodnoty načteny:', savedValues);
+        }
+
+        function loadSavedTrips() {
+            // Načtení uložených jízd (simulace localStorage)
+            savedTrips = window.stazkaStoredTrips || [];
+            updateSavedTripsDisplay();
+        }
+
+        function saveTripToStorage(trip) {
+            savedTrips.unshift(trip); // Přidat na začátek seznamu
+            window.stazkaStoredTrips = savedTrips;
+            updateSavedTripsDisplay();
+            console.log('Jízda uložena do paměti:', trip);
+        }
+
+        function updateSavedTripsDisplay() {
+            const container = document.getElementById('savedTripsContainer');
+            const countElement = document.getElementById('savedTripsCount');
+            
+            countElement.textContent = savedTrips.length;
+
+            if (savedTrips.length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #666;">
+                        <div style="font-size: 3em; margin-bottom: 15px;">📁</div>
+                        <div style="font-weight: bold; margin-bottom: 5px;">Žádné uložené jízdy</div>
+                        <div style="font-size: 0.9em;">Dokončené jízdy se zobrazí zde</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            
+            savedTrips.forEach((trip, index) => {
+                const tripElement = document.createElement('div');
+                tripElement.className = 'saved-trip-item';
+                
+                const duration = trip.endTime - trip.startTime;
+                const hours = Math.floor(duration / 3600000);
+                const minutes = Math.floor((duration % 3600000) / 60000);
+                const durationText = `${hours}:${minutes.toString().padStart(2, '0')}`;
+                
+                tripElement.innerHTML = `
+                    <div class="saved-trip-info">
+                        <div class="saved-trip-title">${trip.driverName}</div>
+                        <div class="saved-trip-date">${new Date(trip.startTime).toLocaleDateString('cs-CZ')}</div>
+                    </div>
+                    <div class="saved-trip-details">
+                        🚚 ${trip.vehiclePlate} • ⏱️ ${durationText} • 📏 ${trip.totalDistance.toFixed(1)} km • 🛑 ${trip.stops.length} zastávek
+                    </div>
+                    <div class="saved-trip-actions">
+                        <button class="btn-small" style="background: #3498db; color: white;" onclick="viewTripSummary(${index})">
+                            📊 Zobrazit
+                        </button>
+                        <button class="btn-small" style="background: #27ae60; color: white;" onclick="exportSavedTrip(${index})">
+                            📤 Export
+                        </button>
+                        <button class="btn-small" style="background: #e74c3c; color: white;" onclick="deleteSavedTrip(${index})">
+                            🗑️ Smazat
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(tripElement);
+            });
+        }
+
+        function viewTripSummary(index) {
+            const trip = savedTrips[index];
+            completedTrip = trip;
+            
+            // Zobrazit sumář
+            displayTripSummary(trip);
+            showScreen('summary');
+        }
+
+        function exportSavedTrip(index) {
+            const trip = savedTrips[index];
+            
+            // Nastavit emailové pole
+            if (currentEmailAddress) {
+                document.getElementById('emailAddress').value = currentEmailAddress;
+            }
+            
+            // Nastavit aktuální trip pro export
+            completedTrip = trip;
+            
+            // Zobrazit email modal
+            showEmailModal();
+        }
+
+        function deleteSavedTrip(index) {
+            const trip = savedTrips[index];
+            
+            if (confirm(`Opravdu chcete smazat jízdu?\n\n👤 ${trip.driverName}\n🚚 ${trip.vehiclePlate}\n📅 ${new Date(trip.startTime).toLocaleDateString('cs-CZ')}`)) {
+                savedTrips.splice(index, 1);
+                window.stazkaStoredTrips = savedTrips;
+                updateSavedTripsDisplay();
+                
+                alert('✅ Jízda byla smazána.');
+            }
         }
 
         function initializeMap() {
@@ -1194,8 +1669,8 @@
             // Ukončení jízdy
             const endTime = new Date();
             const endLocation = {
-                lat: document.getElementById('latitude').textContent,
-                lng: document.getElementById('longitude').textContent,
+                lat: parseFloat(document.getElementById('latitude').textContent),
+                lng: parseFloat(document.getElementById('longitude').textContent),
                 timestamp: endTime
             };
 
@@ -1207,22 +1682,236 @@
                 totalDistance += calculateDistance(prev.lat, prev.lng, curr.lat, curr.lng);
             }
 
+            // Vytvoření objektu dokončené jízdy
+            completedTrip = {
+                id: Date.now().toString(),
+                driverName: tripData.driverName,
+                licenseNumber: tripData.licenseNumber,
+                vehiclePlate: tripData.vehiclePlate,
+                vehicleType: tripData.vehicleType,
+                trailerPlate: tripData.trailerPlate || '',
+                workDate: tripData.workDate,
+                startTime: tripStartTime,
+                endTime: endTime,
+                startLocation: tripData.startLocation,
+                endLocation: tripData.endLocation || '',
+                routeDescription: tripData.routeDescription || '',
+                route: [...currentRoute],
+                stops: [...stops],
+                totalDistance: totalDistance,
+                maxSpeed: currentRoute.reduce((max, point) => Math.max(max, point.speed * 3.6), 0),
+                avgSpeed: currentRoute.length > 0 ? currentRoute.reduce((sum, point) => sum + point.speed * 3.6, 0) / currentRoute.length : 0,
+                startOdometer: parseInt(tripData.odometerStart) || 0,
+                endOdometer: parseInt(tripData.odometerStart) + Math.round(totalDistance)
+            };
+
             // Aktualizace tachometru
-            const startOdometer = parseInt(document.getElementById('odometerStart').value) || 0;
-            const endOdometer = startOdometer + Math.round(totalDistance);
-            
-            // Uložení nového stavu tachometru
             const savedValues = window.stazkaStoredValues || {};
-            savedValues[STORAGE_KEYS.LAST_ODOMETER] = endOdometer.toString();
+            savedValues[STORAGE_KEYS.LAST_ODOMETER] = completedTrip.endOdometer.toString();
             window.stazkaStoredValues = savedValues;
 
-            console.log(`Tachometr aktualizován: ${startOdometer} + ${Math.round(totalDistance)} = ${endOdometer} km`);
+            console.log(`Tachometr aktualizován: ${completedTrip.startOdometer} + ${Math.round(totalDistance)} = ${completedTrip.endOdometer} km`);
 
-            // Vytvoření XML souboru
-            const xmlContent = generateXMLReport(endTime, endLocation);
+            // Zobrazení sumáře jízdy
+            displayTripSummary(completedTrip);
             
-            // Zobrazení modal pro email
-            showEmailModal();
+            // Přepnutí na obrazovku sumáře
+            showTripSummaryScreen();
+        }
+
+        function displayTripSummary(trip) {
+            // Aktualizace nadpisu
+            const subtitle = document.getElementById('summarySubtitle');
+            subtitle.textContent = `${trip.driverName} • ${new Date(trip.startTime).toLocaleDateString('cs-CZ')}`;
+
+            // Vytvoření statistik
+            const duration = trip.endTime - trip.startTime;
+            const hours = Math.floor(duration / 3600000);
+            const minutes = Math.floor((duration % 3600000) / 60000);
+            
+            const statsContainer = document.getElementById('summaryStatsContainer');
+            statsContainer.innerHTML = `
+                <div class="summary-stat">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-value">${hours}:${minutes.toString().padStart(2, '0')}</div>
+                    <div class="stat-label">Doba jízdy</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-icon">📏</div>
+                    <div class="stat-value">${trip.totalDistance.toFixed(1)}</div>
+                    <div class="stat-label">Km ujetých</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-icon">🏁</div>
+                    <div class="stat-value">${Math.round(trip.maxSpeed)}</div>
+                    <div class="stat-label">Max. rychlost (km/h)</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value">${Math.round(trip.avgSpeed)}</div>
+                    <div class="stat-label">Průměr. rychlost (km/h)</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-icon">🛑</div>
+                    <div class="stat-value">${trip.stops.length}</div>
+                    <div class="stat-label">Počet zastávek</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-icon">📍</div>
+                    <div class="stat-value">${trip.route.length}</div>
+                    <div class="stat-label">GPS bodů</div>
+                </div>
+            `;
+
+            // Vykreslení trasy na mapě
+            drawRouteOnSummaryMap(trip);
+        }
+
+        function drawRouteOnSummaryMap(trip) {
+            const mapElement = document.getElementById('summaryMap');
+            const tooltip = document.getElementById('tooltip');
+            const routeLine = document.getElementById('summaryRouteLine');
+
+            // Vyčištění mapy
+            mapElement.querySelectorAll('.gps-point').forEach(point => point.remove());
+
+            if (!trip.route || trip.route.length === 0) return;
+
+            // Najít rozsah souřadnic pro škálování
+            const lats = trip.route.map(p => p.lat);
+            const lons = trip.route.map(p => p.lng);
+            const minLat = Math.min(...lats);
+            const maxLat = Math.max(...lats);
+            const minLon = Math.min(...lons);
+            const maxLon = Math.max(...lons);
+
+            // Přidat padding
+            const latPadding = (maxLat - minLat) * 0.1 || 0.0001;
+            const lonPadding = (maxLon - minLon) * 0.1 || 0.0001;
+
+            // Funkce pro převod GPS souřadnic na pixely
+            function gpsToPixel(lat, lon) {
+                const mapWidth = mapElement.offsetWidth;
+                const mapHeight = mapElement.offsetHeight;
+                
+                const x = ((lon - (minLon - lonPadding)) / ((maxLon + lonPadding) - (minLon - lonPadding))) * mapWidth;
+                const y = mapHeight - (((lat - (minLat - latPadding)) / ((maxLat + latPadding) - (minLat - latPadding))) * mapHeight);
+                
+                return {x, y};
+            }
+
+            // Vykreslení trasy
+            let points = '';
+            trip.route.forEach(point => {
+                const pixel = gpsToPixel(point.lat, point.lng);
+                points += `${pixel.x},${pixel.y} `;
+            });
+            routeLine.setAttribute('points', points.trim());
+
+            // Vykreslení GPS bodů
+            trip.route.forEach((point, index) => {
+                const pixel = gpsToPixel(point.lat, point.lng);
+                const pointElement = document.createElement('div');
+                pointElement.className = 'gps-point';
+                
+                // Určení typu bodu
+                if (index === 0) {
+                    pointElement.classList.add('start');
+                } else if (index === trip.route.length - 1) {
+                    pointElement.classList.add('end');
+                } else {
+                    pointElement.classList.add('normal');
+                }
+                
+                pointElement.style.left = pixel.x + 'px';
+                pointElement.style.top = pixel.y + 'px';
+                
+                // Tooltip
+                pointElement.addEventListener('mouseenter', (e) => {
+                    const speedKmh = (point.speed * 3.6).toFixed(1);
+                    tooltip.innerHTML = `
+                        <strong>GPS bod ${index + 1}</strong><br>
+                        Čas: ${new Date(point.timestamp).toLocaleTimeString('cs-CZ')}<br>
+                        Rychlost: ${speedKmh} km/h<br>
+                        Přesnost: ${point.accuracy.toFixed(1)}m
+                    `;
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = (e.pageX + 10) + 'px';
+                    tooltip.style.top = (e.pageY - 10) + 'px';
+                });
+                
+                pointElement.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
+                
+                mapElement.appendChild(pointElement);
+            });
+
+            // Vykreslení zastávek
+            trip.stops.forEach(stop => {
+                // Najít nejbližší GPS bod k zastávce
+                const stopLat = parseFloat(stop.gpsCoords.lat);
+                const stopLng = parseFloat(stop.gpsCoords.lng);
+                const pixel = gpsToPixel(stopLat, stopLng);
+                
+                const stopElement = document.createElement('div');
+                stopElement.className = 'gps-point stop';
+                stopElement.style.left = pixel.x + 'px';
+                stopElement.style.top = pixel.y + 'px';
+                
+                stopElement.addEventListener('mouseenter', (e) => {
+                    tooltip.innerHTML = `
+                        <strong>Zastávka</strong><br>
+                        Účel: ${stop.purpose}<br>
+                        Čas: ${new Date(stop.time).toLocaleTimeString('cs-CZ')}<br>
+                        ${stop.client ? `Klient: ${stop.client}<br>` : ''}
+                        ${stop.note ? `Poznámka: ${stop.note}` : ''}
+                    `;
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = (e.pageX + 10) + 'px';
+                    tooltip.style.top = (e.pageY - 10) + 'px';
+                });
+                
+                stopElement.addEventListener('mouseleave', () => {
+                    tooltip.style.display = 'none';
+                });
+                
+                mapElement.appendChild(stopElement);
+            });
+        }
+
+        function showTripSummaryScreen() {
+            // Skrýt všechny obrazovky
+            document.getElementById('newTripScreen').classList.add('hidden');
+            document.getElementById('tripSummaryScreen').classList.remove('hidden');
+            document.getElementById('savedTripsScreen').classList.add('hidden');
+            
+            // Zobrazit navigační tlačítka
+            document.getElementById('navigationTabs').classList.add('show');
+            
+            // Aktualizovat navigaci
+            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelector('.nav-tab[onclick*="summary"]').classList.add('active');
+            
+            // Změnit akční tlačítka
+            updateActionButtons('summary');
+        }
+
+        function showScreen(screen) {
+            // Aktualizovat navigační tlačítka
+            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+            
+            if (screen === 'summary') {
+                document.getElementById('tripSummaryScreen').classList.remove('hidden');
+                document.getElementById('savedTripsScreen').classList.add('hidden');
+                document.querySelector('.nav-tab[onclick*="summary"]').classList.add('active');
+                updateActionButtons('summary');
+            } else if (screen === 'saved') {
+                document.getElementById('tripSummaryScreen').classList.add('hidden');
+                document.getElementById('savedTripsScreen').classList.remove('hidden');
+                document.querySelector('.nav-tab[onclick*="saved"]').classList.add('active');
+                updateActionButtons('saved');
+            }
         }
 
         function updateActionButtons(mode) {
@@ -1239,6 +1928,28 @@
                         Ukončit jízdu
                     </button>
                 `;
+            } else if (mode === 'summary') {
+                actionButtons.innerHTML = `
+                    <button type="button" class="btn-mobile btn-success" onclick="saveTripAndContinue()">
+                        <span>💾</span>
+                        Uložit jízdu
+                    </button>
+                    <button type="button" class="btn-mobile btn-primary" onclick="showEmailModal()">
+                        <span>📤</span>
+                        Odeslat XML
+                    </button>
+                `;
+            } else if (mode === 'saved') {
+                actionButtons.innerHTML = `
+                    <button type="button" class="btn-mobile btn-secondary" onclick="clearAllTrips()">
+                        <span>🗑️</span>
+                        Vymazat vše
+                    </button>
+                    <button type="button" class="btn-mobile btn-primary" onclick="startNewTrip()">
+                        <span>🆕</span>
+                        Nová jízda
+                    </button>
+                `;
             } else {
                 actionButtons.innerHTML = `
                     <button type="button" class="btn-mobile btn-secondary" onclick="clearForm()">
@@ -1253,9 +1964,65 @@
             }
         }
 
+        function saveTripAndContinue() {
+            if (completedTrip) {
+                saveTripToStorage(completedTrip);
+                alert('✅ Jízda byla uložena!\n\nMůžete pokračovat v nové jízdě nebo si prohlédnout uložené jízdy.');
+                startNewTrip();
+            }
+        }
+
+        function startNewTrip() {
+            // Reset všech proměnných
+            isTracking = false;
+            currentRoute = [];
+            stops = [];
+            tripStartTime = null;
+            tripData = {};
+            completedTrip = null;
+            
+            // Skrýt všechny obrazovky kromě hlavní
+            document.getElementById('newTripScreen').classList.remove('hidden');
+            document.getElementById('tripSummaryScreen').classList.add('hidden');
+            document.getElementById('savedTripsScreen').classList.add('hidden');
+            
+            // Skrýt navigační tlačítka
+            document.getElementById('navigationTabs').classList.remove('show');
+            
+            // Reset UI
+            document.getElementById('tripStatus').classList.remove('active');
+            document.getElementById('stopsList').classList.remove('has-stops');
+            document.getElementById('mobileLogbookForm').classList.remove('hidden');
+            document.getElementById('trackingInfo').classList.remove('hidden');
+            
+            // Reset tlačítek
+            updateActionButtons('initial');
+            
+            // Reset formuláře ale zachování uložených hodnot
+            loadSavedValues();
+            initializeApp();
+        }
+
+        function clearAllTrips() {
+            if (confirm('Opravdu chcete smazat všechny uložené jízdy?\n\n⚠️ Tato akce je nevratná!')) {
+                savedTrips = [];
+                window.stazkaStoredTrips = [];
+                updateSavedTripsDisplay();
+                alert('✅ Všechny jízdy byly smazány.');
+            }
+        }
+
         function addStop() {
             // Vytvoření modal pro přidání zastávky
             showStopModal();
+            
+            // Automatické rozpoznání místa zastávky
+            const currentLat = parseFloat(document.getElementById('latitude').textContent);
+            const currentLng = parseFloat(document.getElementById('longitude').textContent);
+            
+            if (!isNaN(currentLat) && !isNaN(currentLng)) {
+                detectLocationFromCoords(currentLat, currentLng, 'stop');
+            }
         }
 
         function showStopModal() {
@@ -1438,45 +2205,45 @@
             });
         }
 
-        function generateXMLReport(endTime, endLocation) {
+        function generateXMLReport(trip) {
             const xmlDoc = document.implementation.createDocument(null, 'TripReport');
             const root = xmlDoc.documentElement;
             
             // Hlavní informace
             const tripInfo = xmlDoc.createElement('TripInfo');
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'DriverName', tripData.driverName));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'LicenseNumber', tripData.licenseNumber));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'EmployerName', tripData.employerName));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'VehiclePlate', tripData.vehiclePlate));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'VehicleType', tripData.vehicleType));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'TrailerPlate', tripData.trailerPlate || ''));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'WorkDate', tripData.workDate));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'StartTime', tripData.startTime));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'EndTime', endTime.toLocaleTimeString('cs-CZ')));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'StartLocation', tripData.startLocation));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'EndLocation', tripData.endLocation || ''));
-            tripInfo.appendChild(createXMLElement(xmlDoc, 'RouteDescription', tripData.routeDescription || ''));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'DriverName', trip.driverName));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'LicenseNumber', trip.licenseNumber));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'EmployerName', '')); // Odstraněno pole zaměstnavatele
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'VehiclePlate', trip.vehiclePlate));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'VehicleType', trip.vehicleType));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'TrailerPlate', trip.trailerPlate || ''));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'WorkDate', trip.workDate));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'StartTime', new Date(trip.startTime).toLocaleTimeString('cs-CZ')));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'EndTime', new Date(trip.endTime).toLocaleTimeString('cs-CZ')));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'StartLocation', trip.startLocation));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'EndLocation', trip.endLocation || ''));
+            tripInfo.appendChild(createXMLElement(xmlDoc, 'RouteDescription', trip.routeDescription || ''));
             root.appendChild(tripInfo);
             
             // GPS trasa
             const routeElement = xmlDoc.createElement('Route');
-            currentRoute.forEach(point => {
+            trip.route.forEach(point => {
                 const pointElement = xmlDoc.createElement('GPSPoint');
                 pointElement.appendChild(createXMLElement(xmlDoc, 'Latitude', point.lat.toString()));
                 pointElement.appendChild(createXMLElement(xmlDoc, 'Longitude', point.lng.toString()));
-                pointElement.appendChild(createXMLElement(xmlDoc, 'Timestamp', point.timestamp.toISOString()));
-                pointElement.appendChild(createXMLElement(xmlDoc, 'Speed', (point.speed * 3.6).toFixed(2)));
-                pointElement.appendChild(createXMLElement(xmlDoc, 'Accuracy', point.accuracy.toString()));
+                pointElement.appendChild(createXMLElement(xmlDoc, 'Timestamp', point.timestamp.toISOString ? point.timestamp.toISOString() : new Date(point.timestamp).toISOString()));
+                pointElement.appendChild(createXMLElement(xmlDoc, 'Speed', (point.speed || 0).toFixed(2)));
+                pointElement.appendChild(createXMLElement(xmlDoc, 'Accuracy', (point.accuracy || 0).toString()));
                 routeElement.appendChild(pointElement);
             });
             root.appendChild(routeElement);
             
             // Zastávky
             const stopsElement = xmlDoc.createElement('Stops');
-            stops.forEach((stop, index) => {
+            trip.stops.forEach((stop, index) => {
                 const stopElement = xmlDoc.createElement('Stop');
                 stopElement.appendChild(createXMLElement(xmlDoc, 'Index', (index + 1).toString()));
-                stopElement.appendChild(createXMLElement(xmlDoc, 'Time', stop.time.toISOString()));
+                stopElement.appendChild(createXMLElement(xmlDoc, 'Time', stop.time.toISOString ? stop.time.toISOString() : new Date(stop.time).toISOString()));
                 stopElement.appendChild(createXMLElement(xmlDoc, 'Purpose', stop.purpose || ''));
                 stopElement.appendChild(createXMLElement(xmlDoc, 'Location', stop.location || ''));
                 stopElement.appendChild(createXMLElement(xmlDoc, 'Client', stop.client || ''));
@@ -1509,9 +2276,6 @@
         function closeEmailModal() {
             const modal = document.getElementById('emailModal');
             modal.classList.remove('active');
-            
-            // Reset aplikace
-            resetApplication();
         }
 
         function sendEmail() {
@@ -1527,36 +2291,38 @@
                 alert('⚠️ Zadejte prosím platnou emailovou adresu.');
                 return;
             }
+
+            if (!completedTrip) {
+                alert('⚠️ Žádná jízda není k dispozici pro export.');
+                return;
+            }
             
             // Uložení emailu
             currentEmailAddress = email;
             saveValues();
             
             // Generování XML obsahu
-            const xmlContent = generateXMLReport(new Date(), {
-                lat: document.getElementById('latitude').textContent,
-                lng: document.getElementById('longitude').textContent
-            });
+            const xmlContent = generateXMLReport(completedTrip);
             
             // Vytvoření blob pro stažení
             const blob = new Blob([xmlContent], { type: 'application/xml' });
             const url = URL.createObjectURL(blob);
             
             // Vytvoření názvu souboru
-            const fileName = `stazka_${tripData.driverName || 'ridic'}_${tripData.workDate || new Date().toISOString().split('T')[0]}.xml`;
+            const fileName = `stazka_${completedTrip.driverName.replace(/\s+/g, '_')}_${completedTrip.workDate || new Date(completedTrip.startTime).toISOString().split('T')[0]}.xml`;
             
             // Pokus o otevření emailového klienta s přiloženým souborem
-            const subject = encodeURIComponent(`Stazka - ${tripData.driverName} - ${tripData.workDate}`);
+            const subject = encodeURIComponent(`Stazka - ${completedTrip.driverName} - ${completedTrip.workDate || new Date(completedTrip.startTime).toLocaleDateString('cs-CZ')}`);
             const body = encodeURIComponent(`Dobrý den,
 
 v příloze zasílám vyplněnou stazku:
 
-Řidič: ${tripData.driverName}
-Vozidlo: ${tripData.vehiclePlate}
-Datum: ${tripData.workDate}
-Doba jízdy: ${document.getElementById('tripDuration').textContent}
-Ujetá vzdálenost: ${document.getElementById('tripDistance').textContent} km
-Počet zastávek: ${stops.length}
+Řidič: ${completedTrip.driverName}
+Vozidlo: ${completedTrip.vehiclePlate}
+Datum: ${completedTrip.workDate || new Date(completedTrip.startTime).toLocaleDateString('cs-CZ')}
+Doba jízdy: ${Math.floor((completedTrip.endTime - completedTrip.startTime) / 3600000)}:${Math.floor(((completedTrip.endTime - completedTrip.startTime) % 3600000) / 60000).toString().padStart(2, '0')}
+Ujetá vzdálenost: ${completedTrip.totalDistance.toFixed(1)} km
+Počet zastávek: ${completedTrip.stops.length}
 
 S pozdravem
 `);
@@ -1715,28 +2481,6 @@ S pozdravem
             return regex.test(email);
         }
 
-        function resetApplication() {
-            // Reset všech proměnných
-            isTracking = false;
-            currentRoute = [];
-            stops = [];
-            tripStartTime = null;
-            tripData = {};
-            
-            // Reset UI
-            document.getElementById('tripStatus').classList.remove('active');
-            document.getElementById('stopsList').classList.remove('has-stops');
-            document.getElementById('mobileLogbookForm').classList.remove('hidden');
-            document.getElementById('trackingInfo').classList.remove('hidden');
-            
-            // Reset tlačítek
-            updateActionButtons('initial');
-            
-            // Reset formuláře ale zachování uložených hodnot
-            loadSavedValues();
-            initializeApp();
-        }
-
         // Obsluha odeslání formuláře
         document.getElementById('mobileLogbookForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -1795,6 +2539,10 @@ S pozdravem
                 if (map) {
                     map.invalidateSize();
                 }
+                // Překreslení trasy v sumáři při změne orientace
+                if (completedTrip && !document.getElementById('tripSummaryScreen').classList.contains('hidden')) {
+                    setTimeout(() => drawRouteOnSummaryMap(completedTrip), 200);
+                }
             }, 100);
         });
 
@@ -1809,6 +2557,18 @@ S pozdravem
         window.addEventListener('beforeunload', function() {
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
+            }
+        });
+
+        // Globální error handler pro debugging
+        window.addEventListener('error', function(e) {
+            console.error('JavaScript chyba:', e.error);
+        });
+
+        // Resize handler pro překreslení map
+        window.addEventListener('resize', function() {
+            if (completedTrip && !document.getElementById('tripSummaryScreen').classList.contains('hidden')) {
+                setTimeout(() => drawRouteOnSummaryMap(completedTrip), 100);
             }
         });
     </script>
