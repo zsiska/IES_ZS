@@ -1,0 +1,998 @@
+console.log('Údaje ze stazky:', tripData);
+            
+            // Zahájení sledování trasy
+            startTracking();
+            
+            // Cross-platform haptic feedback
+            if ('vibrate' in navigator) {
+                navigator.vibrate([100, 50, 100]);
+            } else if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
+                // iOS haptic feedback simulation
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSs=');
+                    audio.play().catch(() => {});
+                } catch (e) {}
+            }
+            
+            alert('✅ Směna zahájena!\n\n' + 
+                  '👤 Řidič: ' + tripData.driverName + '\n' +
+                  '🚚 Vozidlo: ' + tripData.vehiclePlate + '\n' +
+                  '📅 Datum: ' + tripData.workDate + '\n' +
+                  '🕐 Čas: ' + tripData.startTime + '\n' +
+                  '📍 GPS: Aktivní sledování\n\n' +
+                  '🔄 Použijte tlačítka "Přidat zastávku" a "Ukončit jízdu"');
+        });<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Stazka Pro - Mobilní verze</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Stazka Pro">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDE4MCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxODAiIGhlaWdodD0iMTgwIiByeD0iNDAiIGZpbGw9IiM2NjdlZWEiLz4KPHN2ZyB4PSI0MCIgeT0iNDAiIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9IndoaXRlIj4KICA8cGF0aCBkPSJNMjAuMzggNmgtMi44NGwtMS41NC0xLjNWMi4yMWEyIDIgMCAwIDAtMi0yek0xNSAwSDJhMiAyIDAgMCAwLTIgMnYxOGEyIDIgMCAwIDAgMiAyaDYuMkwxNSAxOFoiLz4KICA8cGF0aCBkPSJNMjIgOHYxMmEyIDIgMCAwIDEtMiAyaC00bC0zIDJoN2EyIDIgMCAwIDAgMi0yVjhIMjJaIi8+Cjwvc3ZnPgo8L3N2Zz4=">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #333;
+            overflow-x: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-header {
+            background: rgba(30, 60, 114, 0.95);
+            color: white;
+            padding: 15px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.2);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .truck-icon {
+            font-size: 1.8em;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-5px); }
+            60% { transform: translateY(-3px); }
+        }
+
+        .status-badge {
+            background: #27ae60;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .main-container {
+            padding: 0;
+            max-width: 100%;
+        }
+
+        .section-card {
+            background: white;
+            margin: 15px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            transform: translateY(0);
+            transition: all 0.3s ease;
+        }
+
+        .section-card:active {
+            transform: translateY(2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+
+        .section-header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-content {
+            padding: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .input-label {
+            display: block;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e8f4fd;
+            border-radius: 12px;
+            font-size: 16px;
+            background: #fafbfc;
+            transition: all 0.3s ease;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .map-container {
+            background: white;
+            margin: 15px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .map-header {
+            background: linear-gradient(45deg, #27ae60, #2ecc71);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .map-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .gps-status {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #map {
+            height: 250px;
+            width: 100%;
+        }
+
+        .location-info {
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .location-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        .location-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .location-value {
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .action-buttons {
+            position: fixed;
+            bottom: 20px;
+            left: 15px;
+            right: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            z-index: 1000;
+        }
+
+        .btn-mobile {
+            padding: 18px 25px;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, #f39c12, #e67e22);
+            color: white;
+        }
+
+        .btn-warning:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: white;
+        }
+
+        .btn-danger:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .trip-status {
+            background: rgba(39, 174, 96, 0.1);
+            border: 1px solid rgba(39, 174, 96, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px;
+            display: none;
+        }
+
+        .trip-status.active {
+            display: block;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .status-item {
+            text-align: center;
+            background: rgba(255,255,255,0.5);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .status-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #27ae60;
+            display: block;
+        }
+
+        .status-label {
+            color: #666;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+
+        .stops-list {
+            background: white;
+            margin: 15px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .stops-list.has-stops {
+            display: block;
+        }
+
+        .stops-header {
+            background: linear-gradient(45deg, #9b59b6, #8e44ad);
+            color: white;
+            padding: 20px;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stop-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stop-item:last-child {
+            border-bottom: none;
+        }
+
+        .stop-info {
+            flex: 1;
+        }
+
+        .stop-time {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .stop-location {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 2px;
+        }
+
+        .stop-duration {
+            background: #3498db;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+        }
+
+        .floating-speed {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            backdrop-filter: blur(10px);
+            z-index: 999;
+        }
+
+        .speed-value {
+            font-size: 1.2em;
+            line-height: 1;
+        }
+
+        .speed-unit {
+            font-size: 0.7em;
+            opacity: 0.8;
+        }
+
+        .tracking-info {
+            background: rgba(39, 174, 96, 0.1);
+            border: 1px solid rgba(39, 174, 96, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .tracking-icon {
+            font-size: 2em;
+            color: #27ae60;
+        }
+
+        .tracking-text {
+            flex: 1;
+        }
+
+        .tracking-title {
+            font-weight: bold;
+            color: #27ae60;
+            margin-bottom: 5px;
+        }
+
+        .tracking-desc {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .bottom-spacer {
+            height: 100px;
+        }
+
+        .select-field {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e8f4fd;
+            border-radius: 12px;
+            font-size: 16px;
+            background: #fafbfc;
+            transition: all 0.3s ease;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 12px center;
+            background-repeat: no-repeat;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
+        .select-field:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        @media (max-width: 360px) {
+            .section-card {
+                margin: 10px;
+                border-radius: 15px;
+            }
+            
+            .section-content {
+                padding: 15px;
+            }
+            
+            .input-row {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="mobile-header">
+        <div class="header-content">
+            <div class="app-title">
+                <span class="truck-icon">🚛</span>
+                Stazka Pro
+            </div>
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                Online
+            </div>
+        </div>
+    </div>
+
+    <div class="floating-speed" id="speedometer">
+        <div class="speed-value" id="currentSpeed">0</div>
+        <div class="speed-unit">km/h</div>
+    </div>
+
+    <div class="main-container">
+        <form id="mobileLogbookForm">
+            <!-- Údaje o řidiči -->
+            <div class="section-card">
+                <div class="section-header">
+                    <span>👤</span>
+                    Údaje o řidiči
+                </div>
+                <div class="section-content">
+                    <div class="input-group">
+                        <label class="input-label" for="driverName">Jméno a příjmení</label>
+                        <input type="text" id="driverName" class="input-field" required>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="licenseNumber">Číslo řidičského průkazu</label>
+                        <input type="text" id="licenseNumber" class="input-field" required>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="employerName">Zaměstnavatel</label>
+                        <input type="text" id="employerName" class="input-field" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Údaje o vozidle -->
+            <div class="section-card">
+                <div class="section-header">
+                    <span>🚚</span>
+                    Vozidlo
+                </div>
+                <div class="section-content">
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label class="input-label" for="vehiclePlate">SPZ vozidla</label>
+                            <input type="text" id="vehiclePlate" class="input-field" required>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="odometerStart">Tachometr (km)</label>
+                            <input type="number" id="odometerStart" class="input-field" required>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="vehicleType">Typ vozidla</label>
+                        <select id="vehicleType" class="select-field" required>
+                            <option value="">Vyberte typ</option>
+                            <option value="nákladní">Nákladní automobil</option>
+                            <option value="autobus">Autobus</option>
+                            <option value="souprava">Nákladní souprava</option>
+                            <option value="tahač">Tahač s návěsem</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="trailerPlate">SPZ přívěsu (volitelné)</label>
+                        <input type="text" id="trailerPlate" class="input-field">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Datum a čas -->
+            <div class="section-card">
+                <div class="section-header">
+                    <span>📅</span>
+                    Datum a čas
+                </div>
+                <div class="section-content">
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label class="input-label" for="workDate">Datum</label>
+                            <input type="date" id="workDate" class="input-field" required>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" for="startTime">Čas zahájení</label>
+                            <input type="time" id="startTime" class="input-field" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trasa -->
+            <div class="section-card">
+                <div class="section-header">
+                    <span>📍</span>
+                    Trasa a náklad
+                </div>
+                <div class="section-content">
+                    <div class="input-group">
+                        <label class="input-label" for="startLocation">Místo zahájení</label>
+                        <input type="text" id="startLocation" class="input-field" required>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="endLocation">Cílové místo</label>
+                        <input type="text" id="endLocation" class="input-field">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label" for="routeDescription">Popis nákladu/cesty</label>
+                        <input type="text" id="routeDescription" class="input-field">
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <!-- GPS tracking info -->
+        <div class="tracking-info">
+            <div class="tracking-icon">🛰️</div>
+            <div class="tracking-text">
+                <div class="tracking-title">GPS Sledování aktivní</div>
+                <div class="tracking-desc">Trasa bude automaticky zaznamenávána</div>
+            </div>
+        </div>
+
+        <!-- Trip status -->
+        <div class="trip-status" id="tripStatus">
+            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                <div style="font-size: 2em;">🚛</div>
+                <div>
+                    <div style="font-weight: bold; color: #27ae60; font-size: 1.2em;">Jízda probíhá</div>
+                    <div style="color: #666; font-size: 0.9em;">Zahájeno: <span id="tripStartDisplay">---</span></div>
+                </div>
+            </div>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="status-value" id="tripDuration">00:00</span>
+                    <div class="status-label">Doba jízdy</div>
+                </div>
+                <div class="status-item">
+                    <span class="status-value" id="tripDistance">0.0</span>
+                    <div class="status-label">Km ujetých</div>
+                </div>
+                <div class="status-item">
+                    <span class="status-value" id="routePoints">0</span>
+                    <div class="status-label">GPS bodů</div>
+                </div>
+                <div class="status-item">
+                    <span class="status-value" id="stopsCount">0</span>
+                    <div class="status-label">Zastávek</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stops list -->
+        <div class="stops-list" id="stopsList">
+            <div class="stops-header">
+                <span>🛑</span>
+                Zastávky během jízdy
+            </div>
+            <div id="stopsContainer"></div>
+        </div>
+
+        <!-- Mapa -->
+        <div class="map-container">
+            <div class="map-header">
+                <div class="map-title">
+                    <span>🗺️</span>
+                    Aktuální poloha
+                </div>
+                <div class="gps-status" id="gpsStatus">
+                    <span>📡</span>
+                    Vyhledávání...
+                </div>
+            </div>
+            <div id="map"></div>
+            <div class="location-info">
+                <div class="location-row">
+                    <span class="location-label">Zeměpisná šířka:</span>
+                    <span class="location-value" id="latitude">---</span>
+                </div>
+                <div class="location-row">
+                    <span class="location-label">Zeměpisná délka:</span>
+                    <span class="location-value" id="longitude">---</span>
+                </div>
+                <div class="location-row">
+                    <span class="location-label">Přesnost GPS:</span>
+                    <span class="location-value" id="accuracy">---</span>
+                </div>
+                <div class="location-row">
+                    <span class="location-label">Poslední aktualizace:</span>
+                    <span class="location-value" id="lastUpdate">---</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-spacer"></div>
+    </div>
+
+    <div class="action-buttons">
+        <button type="button" class="btn-mobile btn-secondary" onclick="clearForm()">
+            <span>🗑️</span>
+            Vymazat
+        </button>
+        <button type="submit" form="mobileLogbookForm" class="btn-mobile btn-primary">
+            <span>🚀</span>
+            Zahájit
+        </button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script>
+        // Globální proměnné
+        let map, marker, watchId, currentRoute = [];
+        let isTracking = false;
+        let tripData = {};
+        let stops = [];
+        let tripStartTime = null;
+
+        // Inicializace při načtení stránky
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            initializeMap();
+            requestLocationPermission();
+        });
+
+        function initializeApp() {
+            // Nastavení aktuálního data a času
+            const now = new Date();
+            document.getElementById('workDate').valueAsDate = now;
+            
+            const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
+                               now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('startTime').value = currentTime;
+
+            // Formátování SPZ
+            ['vehiclePlate', 'trailerPlate'].forEach(id => {
+                document.getElementById(id).addEventListener('input', function(e) {
+                    e.target.value = e.target.value.toUpperCase();
+                });
+            });
+        }
+
+        function initializeMap() {
+            // Inicializace mapy (výchozí pozice Praha)
+            map = L.map('map').setView([50.0755, 14.4378], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Přidání ovládání
+            L.control.scale().addTo(map);
+        }
+
+        function requestLocationPermission() {
+            if ('geolocation' in navigator) {
+                updateGPSStatus('Požaduji oprávnění...', '#ff9800');
+                
+                const options = {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                };
+
+                watchId = navigator.geolocation.watchPosition(
+                    onLocationSuccess,
+                    onLocationError,
+                    options
+                );
+            } else {
+                updateGPSStatus('GPS nepodporováno', '#f44336');
+            }
+        }
+
+        function onLocationSuccess(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            const speed = position.coords.speed || 0;
+
+            updateGPSStatus('GPS připojeno', '#4caf50');
+            updateLocationInfo(lat, lng, accuracy);
+            updateSpeedometer(speed);
+            updateMapPosition(lat, lng, accuracy);
+            
+            // Přidání bodu do trasy
+            if (isTracking) {
+                const routePoint = {
+                    lat: lat,
+                    lng: lng,
+                    timestamp: new Date(),
+                    speed: speed,
+                    accuracy: accuracy
+                };
+                currentRoute.push(routePoint);
+                
+                updateTripStats();
+            }
+        }
+
+        function onLocationError(error) {
+            let message = 'Chyba GPS';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'Oprávnění zamítnuto';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Poloha nedostupná';
+                    break;
+                case error.TIMEOUT:
+                    message = 'Časový limit';
+                    break;
+            }
+            updateGPSStatus(message, '#f44336');
+        }
+
+        function updateGPSStatus(text, color) {
+            const statusElement = document.getElementById('gpsStatus');
+            statusElement.textContent = text;
+            statusElement.style.background = color;
+        }
+
+        function updateLocationInfo(lat, lng, accuracy) {
+            document.getElementById('latitude').textContent = lat.toFixed(6);
+            document.getElementById('longitude').textContent = lng.toFixed(6);
+            document.getElementById('accuracy').textContent = Math.round(accuracy) + ' m';
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('cs-CZ');
+        }
+
+        function updateSpeedometer(speed) {
+            const speedKmh = speed ? Math.round(speed * 3.6) : 0;
+            document.getElementById('currentSpeed').textContent = speedKmh;
+            
+            // Změna barvy podle rychlosti
+            const speedometer = document.getElementById('speedometer');
+            if (speedKmh > 50) {
+                speedometer.style.background = 'rgba(255, 152, 0, 0.9)';
+            } else if (speedKmh > 0) {
+                speedometer.style.background = 'rgba(76, 175, 80, 0.9)';
+            } else {
+                speedometer.style.background = 'rgba(0, 0, 0, 0.8)';
+            }
+        }
+
+        function updateMapPosition(lat, lng, accuracy) {
+            // Aktualizace pozice markeru
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            
+            marker = L.marker([lat, lng]).addTo(map);
+            
+            // Kruhy přesnosti
+            const accuracyCircle = L.circle([lat, lng], {
+                radius: accuracy,
+                fillColor: '#667eea',
+                fillOpacity: 0.2,
+                color: '#667eea',
+                weight: 2
+            }).addTo(map);
+            
+            // Centrování mapy pouze při prvním načtení
+            if (!map.hasBeenCentered) {
+                map.setView([lat, lng], 15);
+                map.hasBeenCentered = true;
+            }
+        }
+
+        function clearForm() {
+            if (confirm('Opravdu chcete vymazat všechny zadané údaje?')) {
+                document.getElementById('mobileLogbookForm').reset();
+                initializeApp();
+            }
+        }
+
+        function startTracking() {
+            isTracking = true;
+            currentRoute = [];
+            
+            // Haptic feedback pro iOS
+            if ('vibrate' in navigator) {
+                navigator.vibrate(200);
+            } else if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
+                // iOS 13+ haptic feedback simulation
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSs=');
+                    audio.play().catch(() => {});
+                } catch (e) {}
+            }
+        }
+
+        // Obsluha odeslání formuláře
+        document.getElementById('mobileLogbookForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            tripData = Object.fromEntries(formData);
+            
+            // Přidání GPS dat
+            tripData.startLatitude = document.getElementById('latitude').textContent;
+            tripData.startLongitude = document.getElementById('longitude').textContent;
+            tripData.gpsAccuracy = document.getElementById('accuracy').textContent;
+            
+            console.log('Údaje ze stazky:', data);
+            
+            // Zahájení sledování trasy
+            startTracking();
+            
+            // Cross-platform haptic feedback
+            if ('vibrate' in navigator) {
+                navigator.vibrate([100, 50, 100]);
+            } else if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
+                // iOS haptic feedback simulation
+                try {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSsFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMcBjiR1/LNeSs=');
+                    audio.play().catch(() => {});
+                } catch (e) {}
+            }
+            
+            alert('✅ Směna zahájena!\n\n' + 
+                  '👤 Řidič: ' + data.driverName + '\n' +
+                  '🚚 Vozidlo: ' + data.vehiclePlate + '\n' +
+                  '📅 Datum: ' + data.workDate + '\n' +
+                  '🕐 Čas: ' + data.startTime + '\n' +
+                  '📍 GPS: Aktivní sledování');
+        });
+
+        // Prevence zoomování na iOS a Android
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+
+        // iOS specific optimizations
+        document.addEventListener('gesturestart', function (e) {
+            e.preventDefault();
+        });
+
+        document.addEventListener('gesturechange', function (e) {
+            e.preventDefault();
+        });
+
+        document.addEventListener('gestureend', function (e) {
+            e.preventDefault();
+        });
+
+        // Optimalizace pro mobilní zařízení
+        window.addEventListener('orientationchange', function() {
+            setTimeout(() => {
+                if (map) {
+                    map.invalidateSize();
+                }
+            }, 100);
+        });
+
+        // Úspora baterie - snížení frekvence aktualizací při nečinnosti
+        let lastActivityTime = Date.now();
+        
+        document.addEventListener('touchstart', function() {
+            lastActivityTime = Date.now();
+        });
+
+        // Čištění při zavření stránky
+        window.addEventListener('beforeunload', function() {
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+            }
+        });
+    </script>
+</body>
+</html>
