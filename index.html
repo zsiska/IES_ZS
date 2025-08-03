@@ -1250,31 +1250,49 @@
 
         // Ukončení cesty
         function endRoute(useCurrentLocation) {
+            console.log('Ukončuji cestu, useCurrentLocation:', useCurrentLocation);
+            
             // Získání koncové pozice
             if (useCurrentLocation) {
-                navigator.geolocation.getCurrentPosition((position) => {
+                // Pokus o získání aktuální pozice, ale neblokuj proces
+                if (routeData.gpsPoints.length > 0) {
+                    // Použij poslední známou pozici okamžitě
+                    const lastPoint = routeData.gpsPoints[routeData.gpsPoints.length - 1];
                     routeData.endCoordinates = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude
+                        lat: lastPoint.lat,
+                        lng: lastPoint.lng
                     };
-                    routeData.actualDestination = 'Aktuální poloha';
+                    routeData.actualDestination = 'Poslední zaznamenaná poloha';
                     routeData.endType = 'automatic';
+                    
+                    // Pokus se získat aktuální pozici, ale neblokuj
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            // Aktualizuj na přesnější pozici, pokud je k dispozici
+                            routeData.endCoordinates = {
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude
+                            };
+                            routeData.actualDestination = 'Aktuální poloha';
+                            saveRoute(); // Ulož aktualizovaná data
+                        },
+                        (error) => {
+                            console.log('GPS není dostupná, používám poslední známou polohu');
+                        },
+                        { timeout: 3000, enableHighAccuracy: false }
+                    );
+                    
+                    // Okamžitě finalizuj s poslední známou pozicí
                     finalizeRoute();
-                }, (error) => {
-                    console.error('GPS Error:', error);
-                    alert('Nepodařilo se získat GPS pozici. Použiji poslední známou polohu.');
-                    if (routeData.gpsPoints.length > 0) {
-                        const lastPoint = routeData.gpsPoints[routeData.gpsPoints.length - 1];
-                        routeData.endCoordinates = {
-                            lat: lastPoint.lat,
-                            lng: lastPoint.lng
-                        };
-                        routeData.actualDestination = 'Poslední známá poloha';
-                        routeData.endType = 'automatic';
-                        finalizeRoute();
-                    }
-                });
+                } else {
+                    // Žádné GPS body - použij plánovaný cíl
+                    routeData.actualDestination = routeData.plannedDestination;
+                    routeData.endType = 'automatic';
+                    routeData.endCoordinates = null;
+                    finalizeRoute();
+                }
             } else {
+                // Ruční zadání
                 const manualLocation = document.getElementById('manualEndLocation').value.trim();
                 if (!manualLocation) {
                     alert('Prosím zadejte koncové místo!');
@@ -1282,14 +1300,18 @@
                 }
                 routeData.actualDestination = manualLocation;
                 routeData.endType = 'manual';
-                // Použij poslední známou pozici
+                
+                // Použij poslední známou pozici pro souřadnice
                 if (routeData.gpsPoints.length > 0) {
                     const lastPoint = routeData.gpsPoints[routeData.gpsPoints.length - 1];
                     routeData.endCoordinates = {
                         lat: lastPoint.lat,
                         lng: lastPoint.lng
                     };
+                } else {
+                    routeData.endCoordinates = null;
                 }
+                
                 finalizeRoute();
             }
         }
