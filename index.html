@@ -987,7 +987,8 @@
                     routeLine = L.polyline(routeCoords, {
                         color: '#f44336',
                         weight: 4,
-                        opacity: 0.8
+                        opacity: 0.8,
+                        smoothFactor: 1
                     }).addTo(map);
                 }
             }
@@ -1344,16 +1345,90 @@
             document.getElementById('endModal').style.display = 'none';
             document.getElementById('manualEndModal').style.display = 'none';
 
-            // Uložení
-            saveRoute();
+        // Zobrazení souhrnu cesty
+        function showSummary() {
+            const modal = document.getElementById('summaryModal');
+            const content = document.getElementById('summaryContent');
             
-            // Generování XML a odeslání
+            // Vytvoř souhrn
+            content.innerHTML = `
+                <div class="form-section" style="background: rgba(76, 175, 80, 0.1);">
+                    <h3>📋 ${routeData.routeNumber}</h3>
+                    <p><strong>Řidič:</strong> ${routeData.driver}</p>
+                    <p><strong>Vozidlo:</strong> ${routeData.vehicle.plate} (${routeData.vehicle.type})</p>
+                    <p><strong>Trasa:</strong> ${routeData.startLocation} → ${routeData.actualDestination}</p>
+                    <p><strong>Vzdálenost:</strong> ${routeData.statistics.totalDistance} km</p>
+                    <p><strong>Doba jízdy:</strong> ${routeData.statistics.totalDuration}</p>
+                    <p><strong>Průměrná rychlost:</strong> ${routeData.statistics.averageSpeed} km/h</p>
+                    <p><strong>Počet zastávek:</strong> ${routeData.statistics.totalStops}</p>
+                    <p><strong>GPS bodů:</strong> ${routeData.statistics.totalGPSPoints}</p>
+                </div>
+            `;
+            
+            modal.style.display = 'block';
+            
+            // Inicializuj mapu se souhrnem
+            setTimeout(() => {
+                const summaryMap = L.map('summaryMap').setView([50.0755, 14.4378], 13);
+                
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(summaryMap);
+                
+                // Zobraz celou trasu
+                if (routeData.gpsPoints.length > 0) {
+                    const routeCoords = routeData.gpsPoints.map(p => [p.lat, p.lng]);
+                    const summaryLine = L.polyline(routeCoords, {
+                        color: '#f44336',
+                        weight: 4,
+                        opacity: 0.8
+                    }).addTo(summaryMap);
+                    
+                    // Start marker
+                    L.marker([routeData.startCoordinates.lat, routeData.startCoordinates.lng], {
+                        icon: L.divIcon({
+                            html: '<div style="background: #4caf50; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">S</div>',
+                            iconSize: [30, 30]
+                        })
+                    }).addTo(summaryMap).bindPopup('Start: ' + routeData.startLocation);
+                    
+                    // End marker
+                    if (routeData.endCoordinates) {
+                        L.marker([routeData.endCoordinates.lat, routeData.endCoordinates.lng], {
+                            icon: L.divIcon({
+                                html: '<div style="background: #f44336; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">C</div>',
+                                iconSize: [30, 30]
+                            })
+                        }).addTo(summaryMap).bindPopup('Cíl: ' + routeData.actualDestination);
+                    }
+                    
+                    // Zastávky
+                    routeData.stops.forEach((stop, index) => {
+                        L.marker([stop.lat, stop.lng], {
+                            icon: L.divIcon({
+                                html: `<div style="background: #ff9800; color: white; width: 25px; height: 25px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px;">${index + 1}</div>`,
+                                iconSize: [25, 25]
+                            })
+                        }).addTo(summaryMap).bindPopup(`Zastávka ${index + 1}: ${stop.reason}`);
+                    });
+                    
+                    // Fit bounds
+                    summaryMap.fitBounds(summaryLine.getBounds());
+                }
+            }, 300);
+        }
+
+        function sendSummary() {
             generateAndSendXML();
-            
-            // Reset UI
+        }
+
+        function closeSummary() {
+            document.getElementById('summaryModal').style.display = 'none';
             setTimeout(() => {
                 location.reload();
-            }, 2000);
+            }, 500);
+        }
         }
 
         // Generování XML
@@ -1436,14 +1511,17 @@
         </zastavka>`).join('')}
     </zastavky>
     <trasa>
+        <pocet_bodu>${data.gpsPoints.length}</pocet_bodu>
+        <body>
         ${data.gpsPoints.map((point, index) => `
-        <bod cislo="${index + 1}" interpolovany="${point.interpolated}">
-            <cas>${new Date(point.timestamp).toISOString()}</cas>
-            <lat>${point.lat}</lat>
-            <lng>${point.lng}</lng>
-            <rychlost_kmh>${point.speed}</rychlost_kmh>
-            <presnost_m>${point.accuracy}</presnost_m>
-        </bod>`).join('')}
+            <bod cislo="${index + 1}" interpolovany="${point.interpolated}">
+                <cas>${new Date(point.timestamp).toISOString()}</cas>
+                <lat>${point.lat.toFixed(6)}</lat>
+                <lng>${point.lng.toFixed(6)}</lng>
+                <rychlost_kmh>${point.speed}</rychlost_kmh>
+                <presnost_m>${point.accuracy}</presnost_m>
+            </bod>`).join('')}
+        </body>
     </trasa>
 </elektronicka_stazka>`;
             return xml;
