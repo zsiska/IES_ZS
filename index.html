@@ -11,6 +11,8 @@
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JS - načíst hned -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <style>
         * {
@@ -622,9 +624,6 @@
         </div>
     </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script>
         // Globální proměnné
         let map = null;
@@ -675,14 +674,6 @@
             updateOnlineStatus();
             window.addEventListener('online', updateOnlineStatus);
             window.addEventListener('offline', updateOnlineStatus);
-            
-            // Inicializace prázdných polí pro routeData
-            if (!routeData) {
-                routeData = {
-                    stops: [],
-                    gpsPoints: []
-                };
-            }
         }
 
         // Aktualizace data a času
@@ -831,7 +822,7 @@
 
         // Inicializace mapy
         function initializeMap() {
-            if (!map) {
+            if (!map && typeof L !== 'undefined') {
                 map = L.map('map').setView([50.0755, 14.4378], 13);
                 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -848,22 +839,32 @@
                 return;
             }
 
+            console.log('Spouštím GPS tracking...');
             isTracking = true;
             
-            // Získání první pozice
+            // Získání první pozice s vyšším timeoutem
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    console.log('První GPS pozice získána');
                     handleGPSUpdate(position);
                     // Přidání startovní pozice do dat
-                    if (routeData.gpsPoints.length === 0) {
+                    if (routeData.gpsPoints.length > 0) {
                         routeData.startCoordinates = {
                             lat: position.coords.latitude,
                             lng: position.coords.longitude
                         };
                     }
                 },
-                handleGPSError,
-                { enableHighAccuracy: true }
+                (error) => {
+                    console.error('Chyba při získání první GPS pozice:', error);
+                    handleGPSError(error);
+                    // Pokračuj i bez první pozice
+                },
+                { 
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
             );
 
             // Kontinuální sledování
@@ -883,7 +884,11 @@
                     navigator.geolocation.getCurrentPosition(
                         handleGPSUpdate,
                         handleGPSError,
-                        { enableHighAccuracy: true }
+                        { 
+                            enableHighAccuracy: true,
+                            timeout: 5000,
+                            maximumAge: 0
+                        }
                     );
                 }
             }, 5000);
@@ -891,6 +896,11 @@
 
         // Zpracování GPS update
         function handleGPSUpdate(position) {
+            if (!routeData || !routeData.gpsPoints) {
+                console.error('routeData není inicializována!');
+                return;
+            }
+            
             const coords = position.coords;
             const point = {
                 lat: coords.latitude,
@@ -900,6 +910,8 @@
                 timestamp: Date.now(),
                 interpolated: false
             };
+
+            console.log('GPS update:', point);
 
             // Kontrola interpolace
             if (routeData.gpsPoints.length > 0) {
@@ -919,6 +931,7 @@
             // Přidej aktuální bod
             if (!isStopped) {
                 routeData.gpsPoints.push(point);
+                console.log('GPS bod přidán, celkem bodů:', routeData.gpsPoints.length);
             }
 
             // Update UI
@@ -950,6 +963,8 @@
 
         // Update mapy
         function updateMap(point) {
+            if (typeof L === 'undefined' || !map) return;
+            
             const latLng = [point.lat, point.lng];
 
             // Update markeru
@@ -1057,7 +1072,44 @@
         // GPS chyba
         function handleGPSError(error) {
             console.error('GPS Error:', error);
-            document.getElementById('gpsStatus').textContent = 'GPS: Nedostupná';
+            console.error('GPS Error code:', error.code);
+            console.error('GPS Error message:', error.message);
+            
+            let errorMessage = 'GPS: Nedostupná';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = 'GPS: Přístup zamítnut';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = 'GPS: Pozice nedostupná';
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = 'GPS: Vypršel čas';
+                    break;
+            }
+            
+            document.getElementById('gpsStatus').textContent = errorMessage;
+            
+            // Pro testování - přidej simulovanou pozici
+            if (routeData && routeData.gpsPoints && routeData.gpsPoints.length === 0) {
+                console.log('Přidávám simulovanou pozici pro testování...');
+                const simulatedPoint = {
+                    lat: 50.0755 + (Math.random() - 0.5) * 0.01,
+                    lng: 14.4378 + (Math.random() - 0.5) * 0.01,
+                    speed: 0,
+                    accuracy: 50,
+                    timestamp: Date.now(),
+                    interpolated: false
+                };
+                routeData.gpsPoints.push(simulatedPoint);
+                routeData.startCoordinates = {
+                    lat: simulatedPoint.lat,
+                    lng: simulatedPoint.lng
+                };
+                updateMap(simulatedPoint);
+                updateStats();
+            }
         }
 
         // Přidání/ukončení zastávky
@@ -1252,67 +1304,60 @@
         function endRoute(useCurrentLocation) {
             console.log('Ukončuji cestu, useCurrentLocation:', useCurrentLocation);
             
-            // Získání koncové pozice
-            if (useCurrentLocation) {
-                // Pokus o získání aktuální pozice, ale neblokuj proces
-                if (routeData.gpsPoints.length > 0) {
-                    // Použij poslední známou pozici okamžitě
-                    const lastPoint = routeData.gpsPoints[routeData.gpsPoints.length - 1];
-                    routeData.endCoordinates = {
-                        lat: lastPoint.lat,
-                        lng: lastPoint.lng
-                    };
-                    routeData.actualDestination = 'Poslední zaznamenaná poloha';
-                    routeData.endType = 'automatic';
+            try {
+                // Získání koncové pozice
+                if (useCurrentLocation) {
+                    console.log('Používám aktuální pozici...');
                     
-                    // Pokus se získat aktuální pozici, ale neblokuj
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            // Aktualizuj na přesnější pozici, pokud je k dispozici
-                            routeData.endCoordinates = {
-                                lat: position.coords.latitude,
-                                lng: position.coords.longitude
-                            };
-                            routeData.actualDestination = 'Aktuální poloha';
-                            saveRoute(); // Ulož aktualizovaná data
-                        },
-                        (error) => {
-                            console.log('GPS není dostupná, používám poslední známou polohu');
-                        },
-                        { timeout: 3000, enableHighAccuracy: false }
-                    );
+                    // Okamžitě použij poslední známou pozici
+                    if (routeData && routeData.gpsPoints && routeData.gpsPoints.length > 0) {
+                        const lastPoint = routeData.gpsPoints[routeData.gpsPoints.length - 1];
+                        routeData.endCoordinates = {
+                            lat: lastPoint.lat,
+                            lng: lastPoint.lng
+                        };
+                        routeData.actualDestination = 'Poslední zaznamenaná poloha';
+                        routeData.endType = 'automatic';
+                        
+                        console.log('Volám finalizeRoute...');
+                        finalizeRoute();
+                    } else {
+                        // Žádné GPS body
+                        console.log('Žádné GPS body, používám plánovaný cíl...');
+                        routeData.actualDestination = routeData.plannedDestination || 'Neznámé místo';
+                        routeData.endType = 'automatic';
+                        routeData.endCoordinates = null;
+                        
+                        console.log('Volám finalizeRoute bez GPS...');
+                        finalizeRoute();
+                    }
+                } else {
+                    // Ruční zadání
+                    console.log('Ruční zadání místa...');
+                    const manualLocation = document.getElementById('manualEndLocation').value.trim();
+                    if (!manualLocation) {
+                        alert('Prosím zadejte koncové místo!');
+                        return;
+                    }
+                    routeData.actualDestination = manualLocation;
+                    routeData.endType = 'manual';
                     
-                    // Okamžitě finalizuj s poslední známou pozicí
+                    if (routeData.gpsPoints && routeData.gpsPoints.length > 0) {
+                        const lastPoint = routeData.gpsPoints[routeData.gpsPoints.length - 1];
+                        routeData.endCoordinates = {
+                            lat: lastPoint.lat,
+                            lng: lastPoint.lng
+                        };
+                    } else {
+                        routeData.endCoordinates = null;
+                    }
+                    
+                    console.log('Volám finalizeRoute s ručním místem...');
                     finalizeRoute();
-                } else {
-                    // Žádné GPS body - použij plánovaný cíl
-                    routeData.actualDestination = routeData.plannedDestination;
-                    routeData.endType = 'automatic';
-                    routeData.endCoordinates = null;
-                    finalizeRoute();
                 }
-            } else {
-                // Ruční zadání
-                const manualLocation = document.getElementById('manualEndLocation').value.trim();
-                if (!manualLocation) {
-                    alert('Prosím zadejte koncové místo!');
-                    return;
-                }
-                routeData.actualDestination = manualLocation;
-                routeData.endType = 'manual';
-                
-                // Použij poslední známou pozici pro souřadnice
-                if (routeData.gpsPoints.length > 0) {
-                    const lastPoint = routeData.gpsPoints[routeData.gpsPoints.length - 1];
-                    routeData.endCoordinates = {
-                        lat: lastPoint.lat,
-                        lng: lastPoint.lng
-                    };
-                } else {
-                    routeData.endCoordinates = null;
-                }
-                
-                finalizeRoute();
+            } catch (error) {
+                console.error('Chyba při ukončování cesty:', error);
+                alert('Chyba při ukončování cesty. Zkuste to prosím znovu.');
             }
         }
 
@@ -1801,7 +1846,7 @@
             initializeMap();
             
             // Zobraz existující trasu
-            if (routeData.gpsPoints.length > 0) {
+            if (routeData.gpsPoints.length > 0 && typeof L !== 'undefined') {
                 const routeCoords = routeData.gpsPoints.map(p => [p.lat, p.lng]);
                 routeLine = L.polyline(routeCoords, {
                     color: '#f44336',
