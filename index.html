@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="cs">
 <head>
@@ -188,10 +189,6 @@
       
       <div class="card">
         <h2>Stav a ovládání</h2>
-        <div class="form-row">
-          <label>Aktuální režim</label>
-          <input type="text" id="current-mode" disabled value="Připraven">
-        </div>
         <div class="form-row">
           <label>GPS souřadnice</label>
           <input type="text" id="gps-coords" disabled value="Čeká na GPS...">
@@ -506,8 +503,22 @@
         enabled: false // Only enabled when in driving mode
       },
       cargoOperations: [],
+      fuelingOperations: [],
       currentCargoType: null,
-      wakeLock: null
+      wakeLock: null,
+      modeHistory: [], // Track mode changes with timestamps
+      modeTimes: {
+        driving: 0,
+        loading: 0,
+        unloading: 0,
+        fueling: 0,
+        repair: 0,
+        break: 0,
+        idle: 0
+      },
+      modeStartTime: null, // Track when current mode started
+      countryBorders: [], // Track country border crossings
+      lastCountry: null // Track last detected country
     };
 
     // Wake Lock API for keeping screen active during trips
@@ -533,19 +544,60 @@
       }
     }
 
+    // Enhanced mode management with state machine
     function setMode(mode) {
-      state.currentMode = mode;
+      const previousMode = state.currentMode;
       
-      document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.mode === mode) {
-          btn.classList.add('active');
-        }
+      // Calculate time spent in previous mode
+      if (state.modeStartTime && state.tripActive) {
+        const timeSpent = Date.now() - state.modeStartTime;
+        state.modeTimes[previousMode] += timeSpent;
+      }
+      
+      // Log mode change
+      state.modeHistory.push({
+        from: previousMode,
+        to: mode,
+        timestamp: new Date(),
+        duration: state.modeStartTime ? Date.now() - state.modeStartTime : 0,
+        gps: state.lastPosition ? {
+          lat: state.lastPosition.latitude,
+          lng: state.lastPosition.longitude
+        } : null
       });
       
+      state.currentMode = mode;
+      state.modeStartTime = Date.now();
+      
+      // Update stop detection based on mode
+      updateStopDetection(mode);
+      
+      // Update UI
+      updateModeIndicator(mode);
+      updateModeButtons(mode);
+      
+      // Handle mode-specific actions
+      handleModeChange(mode, previousMode);
+    }
+
+    function updateStopDetection(mode) {
+      // Stop detection only works in driving mode
+      state.stopDetection.enabled = (mode === 'driving');
+      
+      if (!state.stopDetection.enabled) {
+        // Reset stop detection when leaving driving mode
+        state.stopDetection.stopTime = 0;
+        if (state.stopDetection.stopModalShown) {
+          closeStopModal();
+        }
+      }
+    }
+
+    function updateModeIndicator(mode) {
+      const indicator = document.getElementById('mode-indicator');
       const modeNames = {
         'driving': 'Jízda',
-        'loading': 'Nakládka',
+        'loading': 'Nakládka', 
         'unloading': 'Vykládka',
         'fueling': 'Tankování',
         'repair': 'Oprava',
@@ -553,18 +605,96 @@
         'idle': 'Prostoj'
       };
       
-      document.getElementById('current-mode').value = modeNames[mode] || mode;
+      indicator.textContent = modeNames[mode] || mode;
+      indicator.className = `mode-indicator ${mode}`;
+    }
+
+    function updateModeButtons(mode) {
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.mode === mode) {
+          btn.classList.add('active');
+        }
+      });
+    }
+
+    function handleModeChange(newMode, previousMode) {
+      // Handle specific mode transitions
+      if (newMode === 'loading' || newMode === 'unloading') {
+        // Show cargo modal for loading/unloading
+        state.currentCargoType = newMode;
+        showCargoModal(newMode);
+      } else if (newMode === 'fueling') {
+        // Show fueling modal
+        showFuelingModal();
+      }
       
-      // Update mode indicator
-      const indicator = document.getElementById('mode-indicator');
-      if (indicator) {
-        indicator.textContent = modeNames[mode] || mode;
-        indicator.className = `mode-indicator ${mode}`;
+      // Auto-calculate fuel consumption when leaving fueling mode
+      if (previousMode === 'fueling' && newMode !== 'fueling') {
+        updateFuelLevel();
       }
     }
 
+    function showCargoModal(type) {
+      document.getElementById('cargo-modal-title').textContent = 
+        type === 'loading' ? '📦 Detaily nakládky' : '📤 Detaily vykládky';
+      
+      // Pre-fill location with current GPS
+      if (state.lastPosition) {
+        document.getElementById('cargo-location').value = 
+          `GPS: ${state.lastPosition.latitude.toFixed(4)}, ${state.lastPosition.longitude.toFixed(4)}`;
+      }
+      
+      document.getElementById('cargo-modal').classList.add('active');
+    }
 
+    function showFuelingModal() {
+      // Pre-fill location with current GPS
+      if (state.lastPosition) {
+        document.getElementById('fuel-location').value = 
+          `GPS: ${state.lastPosition.latitude.toFixed(4)}, ${state.lastPosition.longitude.toFixed(4)}`;
+      }
+      
+      document.getElementById('fueling-modal').classList.add('active');
+    }
 
+    function closeFuelingModal() {
+      document.getElementById('fueling-modal').classList.remove('active');
+      // Clear form
+      document.getElementById('fuel-station').value = '';
+      document.getElementById('fuel-amount').value = '';
+      document.getElementById('fuel-price').value = '';
+      document.getElementById('fuel-total-price').value = '';
+      document.getElementById('fuel-location').value = '';
+    }
+
+    function saveFuelingDetails() {
+      const fuelAmount = parseFloat(document.getElementById('fuel-amount').value) || 0;
+      
+      const operation = {
+        station: document.getElementById('fuel-station').value,
+        amount: fuelAmount,
+        pricePerLiter: parseFloat(document.getElementById('fuel-price').value) || 0,
+        totalPrice: parseFloat(document.getElementById('fuel-total-price').value) || 0,
+        location: document.getElementById('fuel-location').value,
+        timestamp: new Date().toISOString(),
+        gps: state.lastPosition ? {
+          lat: state.lastPosition.latitude,
+          lng: state.lastPosition.longitude
+        } : null
+      };
+      
+      // Add fuel to tank
+      state.fuelLevel += fuelAmount;
+      
+      // Add to operations list
+      state.fuelingOperations.push(operation);
+      
+      closeFuelingModal();
+      updateKPIs();
+      
+      alert(`Tankování zaznamenáno: ${fuelAmount}l za ${operation.totalPrice} Kč`);
+    }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
@@ -649,19 +779,14 @@
       if (reason === 'loading' || reason === 'unloading') {
         // Show cargo details modal
         state.currentCargoType = reason;
-        document.getElementById('cargo-modal-title').textContent = 
-          reason === 'loading' ? '📦 Detaily nakládky' : '📤 Detaily vykládky';
-        
-        // Pre-fill location with current GPS
-        if (state.lastPosition) {
-          document.getElementById('cargo-location').value = 
-            `GPS: ${state.lastPosition.latitude.toFixed(4)}, ${state.lastPosition.longitude.toFixed(4)}`;
-        }
-        
-        document.getElementById('cargo-modal').classList.add('active');
+        showCargoModal(reason);
+        closeStopModal();
+      } else if (reason === 'fueling') {
+        // Show fueling modal
+        showFuelingModal();
         closeStopModal();
       } else {
-        // Just change mode for break or idle
+        // Just change mode for break, repair, or idle
         setMode(reason);
         closeStopModal();
       }
@@ -693,9 +818,6 @@
       
       // Add to operations list
       state.cargoOperations.push(operation);
-      
-      // Change mode
-      setMode(state.currentCargoType);
       
       closeCargoModal();
       
@@ -799,6 +921,10 @@
         if (state.currentMode === 'driving' && state.tripActive) {
           state.distance += distance;
           state.odometer += distance;
+          
+          // Simple fuel consumption calculation (assuming 8L/100km average)
+          const fuelConsumed = distance * 0.08;
+          state.fuelLevel = Math.max(0, state.fuelLevel - fuelConsumed);
         }
       }
       
@@ -826,6 +952,11 @@
       // Update map
       updateMapPosition(coords.latitude, coords.longitude);
       
+      // Check for country border crossings
+      if (state.tripActive) {
+        checkCountryBorder(coords.latitude, coords.longitude);
+      }
+      
       // Add to route if trip is active
       if (state.tripActive) {
         addRoutePoint(coords.latitude, coords.longitude);
@@ -839,6 +970,18 @@
         }
       }
       
+      // Auto-switch to driving mode when vehicle starts moving
+      if (state.speed > 10 && state.tripActive && state.currentMode !== 'driving') {
+        // Close any open modals
+        if (state.stopDetection.stopModalShown) {
+          closeStopModal();
+        }
+        closeCargoModal();
+        closeFuelingModal();
+        
+        // Switch to driving mode
+        setMode('driving');
+      }
     }
 
     function haversineDistance(pos1, pos2) {
@@ -853,6 +996,58 @@
       return R * c;
     }
 
+    // Country detection based on coordinates
+    function detectCountry(lat, lng) {
+      // Simplified country detection based on coordinate ranges
+      // This is a basic implementation - in production you'd use a proper geocoding service
+      const countries = {
+        'CZ': { name: 'Česká republika', bounds: { minLat: 48.5, maxLat: 51.1, minLng: 12.0, maxLng: 18.9 } },
+        'DE': { name: 'Německo', bounds: { minLat: 47.3, maxLat: 55.1, minLng: 5.9, maxLng: 15.0 } },
+        'AT': { name: 'Rakousko', bounds: { minLat: 46.4, maxLat: 49.0, minLng: 9.5, maxLng: 17.2 } },
+        'SK': { name: 'Slovensko', bounds: { minLat: 47.7, maxLat: 49.6, minLng: 16.8, maxLng: 22.6 } },
+        'PL': { name: 'Polsko', bounds: { minLat: 49.0, maxLat: 54.8, minLng: 14.1, maxLng: 24.1 } },
+        'HU': { name: 'Maďarsko', bounds: { minLat: 45.7, maxLat: 48.6, minLng: 16.1, maxLng: 22.9 } },
+        'IT': { name: 'Itálie', bounds: { minLat: 35.5, maxLat: 47.1, minLng: 6.6, maxLng: 18.5 } },
+        'FR': { name: 'Francie', bounds: { minLat: 41.3, maxLat: 51.1, minLng: -5.1, maxLng: 9.6 } },
+        'ES': { name: 'Španělsko', bounds: { minLat: 27.6, maxLat: 43.8, minLng: -18.2, maxLng: 4.3 } },
+        'NL': { name: 'Nizozemsko', bounds: { minLat: 50.8, maxLat: 53.6, minLng: 3.4, maxLng: 7.2 } },
+        'BE': { name: 'Belgie', bounds: { minLat: 49.5, maxLat: 51.5, minLng: 2.5, maxLng: 6.4 } },
+        'CH': { name: 'Švýcarsko', bounds: { minLat: 45.8, maxLat: 47.8, minLng: 5.9, maxLng: 10.5 } }
+      };
+
+      for (const [code, country] of Object.entries(countries)) {
+        if (lat >= country.bounds.minLat && lat <= country.bounds.maxLat &&
+            lng >= country.bounds.minLng && lng <= country.bounds.maxLng) {
+          return { code, name: country.name };
+        }
+      }
+      
+      return { code: 'UNKNOWN', name: 'Neznámá země' };
+    }
+
+    function checkCountryBorder(lat, lng) {
+      const currentCountry = detectCountry(lat, lng);
+      
+      if (state.lastCountry && state.lastCountry.code !== currentCountry.code) {
+        // Country border crossed
+        const borderCrossing = {
+          from: state.lastCountry,
+          to: currentCountry,
+          timestamp: new Date().toISOString(),
+          location: { lat, lng },
+          gps: { lat, lng }
+        };
+        
+        state.countryBorders.push(borderCrossing);
+        
+        // Show notification
+        alert(`🚩 Překročena hranice: ${state.lastCountry.name} → ${currentCountry.name}`);
+        
+        console.log('Country border crossed:', borderCrossing);
+      }
+      
+      state.lastCountry = currentCountry;
+    }
 
     function updateMapPosition(lat, lng) {
       if (state.vehicleMarker) {
@@ -922,6 +1117,10 @@
               state.distance += kmPerSecond;
               state.odometer += kmPerSecond;
               
+              // Simulate fuel consumption
+              const fuelConsumed = kmPerSecond * 0.08;
+              state.fuelLevel = Math.max(0, state.fuelLevel - fuelConsumed);
+              
               updateGPSDisplay(state.lastPosition);
               updateMapPosition(state.lastPosition.latitude, state.lastPosition.longitude);
               addRoutePoint(state.lastPosition.latitude, state.lastPosition.longitude);
@@ -934,6 +1133,14 @@
             } else {
               // Vehicle is intentionally stopped
               state.speed = 0;
+              
+              // Occasionally simulate small movements (0-5 km/h) to test stop detection
+              if (Math.random() < 0.1 && state.currentMode === 'driving') {
+                state.speed = Math.random() * 5;
+                state.lastPosition.latitude += (Math.random() - 0.5) * 0.00001;
+                state.lastPosition.longitude += (Math.random() - 0.5) * 0.00001;
+                updateMapPosition(state.lastPosition.latitude, state.lastPosition.longitude);
+              }
             }
           } else {
             state.speed = 0;
@@ -960,6 +1167,7 @@
       document.getElementById('speed').textContent = Math.round(state.speed);
       document.getElementById('distance').textContent = state.distance.toFixed(1);
       document.getElementById('odometer').textContent = Math.round(state.odometer);
+      document.getElementById('fuel-level').textContent = state.fuelLevel.toFixed(1);
       
       if (state.startTime) {
         const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
@@ -968,6 +1176,10 @@
         document.getElementById('duration').textContent = 
           `${hours}:${minutes.toString().padStart(2, '0')}`;
       }
+    }
+
+    function updateFuelLevel() {
+      updateKPIs();
     }
 
     // Enhanced trip management with fuel tracking
@@ -983,13 +1195,38 @@
       
       state.currentStep = step;
       
-      if (step === 5) {
+      if (step === 3) {
+        // Pre-fill with calculated values from previous trip
+        prefillTripStart();
+      } else if (step === 5) {
         // Auto-fill end location and values
         document.getElementById('end-odo').value = Math.round(state.odometer);
+        document.getElementById('end-fuel').value = state.fuelLevel.toFixed(1);
         loadCurrentGPS();
       }
     }
 
+    function prefillTripStart() {
+      // Calculate values from previous completed trip
+      const completedTrips = state.trips.filter(t => t.status === 'completed');
+      if (completedTrips.length > 0) {
+        const lastTrip = completedTrips[completedTrips.length - 1];
+        
+        // Pre-fill odometer with end value + distance from last trip
+        if (lastTrip.endOdo) {
+          document.getElementById('start-odo').value = lastTrip.endOdo;
+          state.odometer = lastTrip.endOdo;
+        }
+        
+        // Pre-fill fuel level from last trip
+        if (lastTrip.endFuel !== undefined) {
+          document.getElementById('start-fuel').value = lastTrip.endFuel;
+          state.fuelLevel = parseFloat(lastTrip.endFuel) || 0;
+        }
+      }
+      
+      updateKPIs();
+    }
 
     function loadCurrentGPS() {
       if (state.lastPosition) {
@@ -1029,9 +1266,15 @@
       state.tripData.status = 'active';
       
       state.odometer = state.tripData.startOdo;
+      state.fuelLevel = state.tripData.startFuel;
       state.tripActive = true;
       state.startTime = Date.now();
       state.cargoOperations = []; // Reset cargo operations for new trip
+      state.fuelingOperations = []; // Reset fueling operations for new trip
+      state.modeHistory = []; // Reset mode history
+      state.modeTimes = { driving: 0, loading: 0, unloading: 0, fueling: 0, repair: 0, break: 0, idle: 0 }; // Reset mode times
+      state.countryBorders = []; // Reset country borders
+      state.modeStartTime = Date.now(); // Initialize mode start time
       
       document.getElementById('btn-end-trip').disabled = false;
       
@@ -1061,7 +1304,15 @@
     }
 
     function pauseTrip() {
-      state.pausedTrip = {...state.tripData, distance: state.distance, odometer: state.odometer};
+      state.pausedTrip = {
+        ...state.tripData, 
+        distance: state.distance, 
+        odometer: state.odometer,
+        fuelLevel: state.fuelLevel,
+        cargoOperations: state.cargoOperations,
+        fuelingOperations: state.fuelingOperations,
+        modeHistory: state.modeHistory
+      };
       state.tripActive = false;
       releaseWakeLock();
       saveTrips();
@@ -1072,11 +1323,15 @@
     function finishTrip() {
       state.tripData.endPlace = document.getElementById('end-place').value || 'Neznámé místo';
       state.tripData.endOdo = parseInt(document.getElementById('end-odo').value) || state.odometer;
-      state.tripData.endFuel = parseFloat(document.getElementById('end-fuel').value) || 0;
+      state.tripData.endFuel = parseFloat(document.getElementById('end-fuel').value) || state.fuelLevel;
       state.tripData.endTime = new Date();
       state.tripData.distance = state.distance;
       state.tripData.status = 'completed';
       state.tripData.cargoOperations = state.cargoOperations;
+      state.tripData.fuelingOperations = state.fuelingOperations;
+      state.tripData.modeHistory = state.modeHistory;
+      state.tripData.modeTimes = state.modeTimes;
+      state.tripData.countryBorders = state.countryBorders;
       
       // Stop simulation/GPS if running
       if (state.simulating) toggleSimulation();
@@ -1094,7 +1349,13 @@
       // Reset state
       state.tripActive = false;
       state.cargoOperations = [];
+      state.fuelingOperations = [];
+      state.modeHistory = [];
+      state.modeTimes = { driving: 0, loading: 0, unloading: 0, fueling: 0, repair: 0, break: 0, idle: 0 };
+      state.countryBorders = [];
+      state.modeStartTime = null;
       document.getElementById('btn-end-trip').disabled = true;
+      setMode('idle');
       
       goToStep(6);
     }
@@ -1114,8 +1375,60 @@
         cargoSummary += '</ul>';
       }
 
+      let fuelSummary = '';
+      if (state.fuelingOperations.length > 0) {
+        fuelSummary = '<p><strong>Tankování:</strong></p><ul>';
+        let totalFuel = 0;
+        let totalCost = 0;
+        state.fuelingOperations.forEach(op => {
+          totalFuel += op.amount;
+          totalCost += op.totalPrice;
+          fuelSummary += `<li>⛽ ${op.amount}l za ${op.totalPrice} Kč (${op.pricePerLiter} Kč/l)<br>
+                          Stanice: ${op.station || '-'}<br>
+                          Místo: ${op.location}<br>
+                          Čas: ${new Date(op.timestamp).toLocaleString('cs-CZ')}</li>`;
+        });
+        fuelSummary += `</ul><p><strong>Celkem natankováno:</strong> ${totalFuel}l za ${totalCost} Kč</p>`;
+      }
 
+      const fuelConsumed = state.tripData.startFuel - state.tripData.endFuel + 
+                          state.fuelingOperations.reduce((sum, op) => sum + op.amount, 0);
 
+      // Generate mode times summary
+      let modeTimesSummary = '';
+      if (state.modeTimes) {
+        modeTimesSummary = '<p><strong>Časy podle činností:</strong></p><ul>';
+        Object.entries(state.modeTimes).forEach(([mode, time]) => {
+          if (time > 0) {
+            const minutes = Math.floor(time / 60000);
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            const modeNames = {
+              'driving': 'Jízda',
+              'loading': 'Nakládka',
+              'unloading': 'Vykládka',
+              'fueling': 'Tankování',
+              'repair': 'Oprava',
+              'break': 'Přestávka',
+              'idle': 'Prostoj'
+            };
+            modeTimesSummary += `<li>${modeNames[mode] || mode}: ${hours}h ${remainingMinutes}m</li>`;
+          }
+        });
+        modeTimesSummary += '</ul>';
+      }
+
+      // Generate country borders summary
+      let bordersSummary = '';
+      if (state.countryBorders && state.countryBorders.length > 0) {
+        bordersSummary = '<p><strong>Překročené hranice:</strong></p><ul>';
+        state.countryBorders.forEach(border => {
+          bordersSummary += `<li>🚩 ${border.from.name} → ${border.to.name}<br>
+                           Čas: ${new Date(border.timestamp).toLocaleString('cs-CZ')}<br>
+                           Pozice: ${border.location.lat.toFixed(4)}, ${border.location.lng.toFixed(4)}</li>`;
+        });
+        bordersSummary += '</ul>';
+      }
       
       const summary = `
         <div style="line-height: 1.6">
@@ -1125,22 +1438,29 @@
           <p><strong>Trasa:</strong> ${state.tripData.startPlace} → ${state.tripData.endPlace}</p>
           <p><strong>Vzdálenost:</strong> ${state.distance.toFixed(1)} km</p>
           <p><strong>Tachometr:</strong> ${state.tripData.startOdo} → ${state.tripData.endOdo} km</p>
-          <p><strong>PHM:</strong> ${state.tripData.startFuel}l → ${state.tripData.endFuel}l</p>
+          <p><strong>PHM:</strong> ${state.tripData.startFuel}l → ${state.tripData.endFuel.toFixed(1)}l (spotřeba: ${fuelConsumed.toFixed(1)}l)</p>
           <p><strong>Čas:</strong> ${state.tripData.startTime.toLocaleString('cs-CZ')} - ${state.tripData.endTime.toLocaleString('cs-CZ')}</p>
           <p><strong>Náklad (start):</strong> ${state.tripData.cargo || '-'}</p>
+          ${modeTimesSummary}
           ${cargoSummary}
+          ${fuelSummary}
+          ${bordersSummary}
         </div>
       `;
       
       document.getElementById('summary-content').innerHTML = summary;
     }
 
-    // Export functions with cargo operations
+    // Enhanced export functions with fuel and mode history
     function exportToJSON() {
       const data = {
         trips: state.trips.map(trip => ({
           ...trip,
-          cargoOperations: trip.cargoOperations || []
+          cargoOperations: trip.cargoOperations || [],
+          fuelingOperations: trip.fuelingOperations || [],
+          modeHistory: trip.modeHistory || [],
+          modeTimes: trip.modeTimes || {},
+          countryBorders: trip.countryBorders || []
         }))
       };
       
@@ -1153,17 +1473,37 @@
     }
 
     function exportToCSV() {
-      let csv = 'Číslo stazky,Řidič,Vozidlo,Start místo,Konec místo,Vzdálenost km,Start tachometr,Konec tachometr,Start PHM,Konec PHM,Start čas,Konec čas,Typ operace,Klient,Popis,Množství,Jednotka,Místo operace,Čas operace\n';
+      let csv = 'Číslo stazky,Řidič,Vozidlo,Start místo,Konec místo,Vzdálenost km,Start tachometr,Konec tachometr,Start PHM,Konec PHM,Start čas,Konec čas,Typ operace,Klient/Stanice,Popis/Litry,Množství,Jednotka/Cena,Místo operace,Čas operace,Hranice státu,Země od,Země do,Čas překročení\n';
       
       state.trips.forEach(trip => {
         const baseRow = `${trip.tripNumber},${trip.driverName},${trip.vehiclePlate},${trip.startPlace},${trip.endPlace || ''},${(trip.distance || 0).toFixed(1)},${trip.startOdo || 0},${trip.endOdo || 0},${trip.startFuel || 0},${trip.endFuel || 0},${trip.startTime},${trip.endTime || ''}`;
         
+        // Add cargo operations
         if (trip.cargoOperations && trip.cargoOperations.length > 0) {
           trip.cargoOperations.forEach(op => {
-            csv += `${baseRow},${op.type},${op.client},${op.description},${op.amount},${op.unit},${op.location},${op.timestamp}\n`;
+            csv += `${baseRow},${op.type},${op.client},${op.description},${op.amount},${op.unit},${op.location},${op.timestamp},-,-,-,-\n`;
           });
-        } else {
-          csv += `${baseRow},-,-,-,-,-,-,-,-\n`;
+        }
+        
+        // Add fueling operations
+        if (trip.fuelingOperations && trip.fuelingOperations.length > 0) {
+          trip.fuelingOperations.forEach(op => {
+            csv += `${baseRow},fueling,${op.station},${op.amount},${op.totalPrice},Kč,${op.location},${op.timestamp},-,-,-,-\n`;
+          });
+        }
+        
+        // Add country border crossings
+        if (trip.countryBorders && trip.countryBorders.length > 0) {
+          trip.countryBorders.forEach(border => {
+            csv += `${baseRow},border,-,-,-,-,-,-,${border.from.name},${border.to.name},${border.timestamp}\n`;
+          });
+        }
+        
+        // If no operations, add empty row
+        if ((!trip.cargoOperations || trip.cargoOperations.length === 0) && 
+            (!trip.fuelingOperations || trip.fuelingOperations.length === 0) &&
+            (!trip.countryBorders || trip.countryBorders.length === 0)) {
+          csv += `${baseRow},-,-,-,-,-,-,-,-,-,-,-\n`;
         }
       });
       
@@ -1219,6 +1559,9 @@
         list.innerHTML = '<p class="info-text">Žádné uložené stazky</p>';
       } else {
         list.innerHTML = state.trips.map(trip => {
+          const fuelInfo = trip.startFuel !== undefined ? 
+            `<br>PHM: ${trip.startFuel}l → ${trip.endFuel?.toFixed(1) || '?'}l` : '';
+          const fuelOps = trip.fuelingOperations?.length || 0;
           const cargoOps = trip.cargoOperations?.length || 0;
           
           return `
@@ -1232,8 +1575,8 @@
                 Vozidlo: ${trip.vehiclePlate}<br>
                 Trasa: ${trip.startPlace} ${trip.endPlace ? '→ ' + trip.endPlace : ''}<br>
                 Vzdálenost: ${trip.distance ? trip.distance.toFixed(1) : '0'} km<br>
-                Tachometr: ${trip.startOdo || 0} → ${trip.endOdo || '?'} km<br>
-                Operace: ${cargoOps} nakládek/vykládek<br>
+                Tachometr: ${trip.startOdo || 0} → ${trip.endOdo || '?'} km${fuelInfo}<br>
+                Operace: ${cargoOps} nakládek/vykládek, ${fuelOps} tankování<br>
                 Datum: ${new Date(trip.startTime).toLocaleDateString('cs-CZ')}
               </div>
               <div class="trip-actions">
@@ -1306,9 +1649,15 @@
       state.tripData = trip;
       state.distance = trip.distance || 0;
       state.odometer = trip.startOdo + state.distance;
+      state.fuelLevel = trip.fuelLevel || trip.startFuel || 0;
       state.startTime = new Date(trip.startTime).getTime();
       state.tripActive = true;
       state.cargoOperations = trip.cargoOperations || [];
+      state.fuelingOperations = trip.fuelingOperations || [];
+      state.modeHistory = trip.modeHistory || [];
+      state.modeTimes = trip.modeTimes || { driving: 0, loading: 0, unloading: 0, fueling: 0, repair: 0, break: 0, idle: 0 };
+      state.countryBorders = trip.countryBorders || [];
+      state.modeStartTime = Date.now();
       
       // Load driver data
       document.getElementById('driver-name').value = trip.driverName;
@@ -1335,6 +1684,7 @@
       // Set trip data for summary generation
       state.tripData = trip;
       state.cargoOperations = trip.cargoOperations || [];
+      state.fuelingOperations = trip.fuelingOperations || [];
       
       generateTripSummary();
       
